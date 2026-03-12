@@ -69,9 +69,6 @@ function extractToolResultText(content: string | ContentBlock[] | undefined): st
   return '';
 }
 
-/** 도구 결과 크기 제한 (1개당 최대 2000자) */
-const MAX_TOOL_RESULT_LENGTH = 2000;
-
 /** assistant content에서 텍스트 + 도구 사용/결과 추출 */
 function extractAssistantContent(msg: ProjectAssistantMessage): {
   text: string;
@@ -103,9 +100,7 @@ function extractAssistantContent(msg: ProjectAssistantMessage): {
         toolResults.push({
           name: toolInfo.name,
           input: toolInfo.input,
-          output: output.length > MAX_TOOL_RESULT_LENGTH
-            ? output.slice(0, MAX_TOOL_RESULT_LENGTH) + '\n... (truncated)'
-            : output,
+          output: output || undefined,
         });
       }
     }

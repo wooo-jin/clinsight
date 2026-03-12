@@ -1,7 +1,8 @@
-import { existsSync, readFileSync, mkdirSync } from 'fs';
+import { existsSync, readFileSync, mkdirSync, readdirSync, rmSync, statSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { atomicWriteSync } from '../../../shared/lib/fs-utils.js';
+import { loadConfig } from '../../../shared/lib/config.js';
 
 const ARCHIVE_DIR = join(homedir(), '.claude', 'clinsight', 'archive');
 
@@ -184,6 +185,62 @@ export function finalizeArchive(
   };
 
   atomicWriteSync(archivePath, JSON.stringify(session, null, 2));
+}
+
+/** 설정된 보관 기간에 따라 오래된 아카이브 정리 */
+export function cleanupOldArchives(): { removedDirs: string[]; skipped: boolean } {
+  const config = loadConfig();
+  if (config.archiveRetentionDays <= 0) {
+    return { removedDirs: [], skipped: true };
+  }
+
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - config.archiveRetentionDays);
+  const cutoffStr = toDateStr(cutoff);
+  const removedDirs: string[] = [];
+
+  if (!existsSync(ARCHIVE_DIR)) return { removedDirs, skipped: false };
+
+  for (const dirName of readdirSync(ARCHIVE_DIR)) {
+    // YYYY-MM-DD 형식인 디렉토리만 대상
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dirName)) continue;
+    if (dirName < cutoffStr) {
+      try {
+        rmSync(join(ARCHIVE_DIR, dirName), { recursive: true, force: true });
+        removedDirs.push(dirName);
+      } catch { /* 삭제 실패는 무시 */ }
+    }
+  }
+
+  return { removedDirs, skipped: false };
+}
+
+/** 아카이브 전체 용량 계산 (bytes) */
+export function getArchiveSize(): { totalBytes: number; sessionCount: number; dayCount: number } {
+  if (!existsSync(ARCHIVE_DIR)) return { totalBytes: 0, sessionCount: 0, dayCount: 0 };
+
+  let totalBytes = 0;
+  let sessionCount = 0;
+  let dayCount = 0;
+
+  for (const dirName of readdirSync(ARCHIVE_DIR)) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dirName)) continue;
+    const dirPath = join(ARCHIVE_DIR, dirName);
+    try {
+      if (!statSync(dirPath).isDirectory()) continue;
+    } catch { continue; }
+
+    dayCount++;
+    for (const fileName of readdirSync(dirPath)) {
+      if (!fileName.endsWith('.json')) continue;
+      try {
+        totalBytes += statSync(join(dirPath, fileName)).size;
+        sessionCount++;
+      } catch { continue; }
+    }
+  }
+
+  return { totalBytes, sessionCount, dayCount };
 }
 
 export { ARCHIVE_DIR };

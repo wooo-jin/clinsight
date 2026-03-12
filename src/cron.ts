@@ -11,6 +11,7 @@ import { loadRecentSessions } from './entities/session/lib/parser.js';
 import { analyzeSession } from './entities/session/lib/analyzer.js';
 import { runCompound } from './entities/session/lib/compound.js';
 import { atomicWriteSync } from './shared/lib/fs-utils.js';
+import { cleanupOldArchives, getArchiveSize } from './features/archive/lib/archive-writer.js';
 import type { DailySummary } from './shared/types/session.js';
 
 const DATA_DIR = join(homedir(), '.claude', 'clinsight');
@@ -146,6 +147,20 @@ async function main() {
     if (compoundResult.patterns.length > 0) {
       log('발견된 패턴:');
       compoundResult.patterns.forEach((p, i) => log(`  ${i + 1}. ${p}`));
+    }
+
+    // 5. 아카이브 용량 보고 + 정리
+    const archiveInfo = getArchiveSize();
+    const sizeMB = (archiveInfo.totalBytes / (1024 * 1024)).toFixed(1);
+    log(`아카이브 현황: ${archiveInfo.sessionCount}개 세션 / ${archiveInfo.dayCount}일 / ${sizeMB}MB`);
+
+    const cleanup = cleanupOldArchives();
+    if (cleanup.skipped) {
+      log('아카이브 보관: 무제한 (정리 건너뜀)');
+    } else if (cleanup.removedDirs.length > 0) {
+      log(`오래된 아카이브 ${cleanup.removedDirs.length}개 디렉토리 정리 완료`);
+    } else {
+      log('정리할 오래된 아카이브 없음');
     }
 
     log('=== 크론잡 완료 ===');
