@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+.serena/
+.claude/.modified-files.json
+.claude/agents/
+.claude/skills/
+release/

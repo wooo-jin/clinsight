@@ -1,0 +1,62 @@
+{
+  "name": "clinsight",
+  "version": "0.1.0",
+  "description": "Claude Code session analyzer & compound TUI dashboard",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wooo-jin/clinsight.git"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "session-analyzer",
+    "tui",
+    "dashboard",
+    "compound"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "INSTALL.md",
+    "LICENSE"
+  ],
+  "bin": {
+    "clinsight": "./dist/cli.js",
+    "clinsight-cron": "./dist/cron.js",
+    "clinsight-hook": "./dist/hook.js",
+    "clinsight-setup": "./dist/setup.js",
+    "clinsight-cron-install": "./dist/scripts/install-cron.js"
+  },
+  "scripts": {
+    "dev": "tsx src/cli.tsx",
+    "build": "tsup",
+    "prepublishOnly": "tsup",
+    "setup": "tsx src/setup.ts",
+    "setup:uninstall": "tsx src/setup.ts --uninstall",
+    "cron": "tsx src/cron.ts",
+    "cron:install": "tsx src/scripts/install-cron.ts",
+    "lint": "eslint src/",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "date-fns": "^4.1.0",
+    "ink": "^5.2.0",
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.4.0",
+    "@types/react": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
