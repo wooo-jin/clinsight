@@ -1,7 +1,8 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { existsSync, readFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import type { CompoundResult, AppliedCompoundItem } from '../../../shared/types/session.js';
 import { COMPOUND_DIR } from '../../../shared/lib/constants.js';
+import { atomicWriteSync } from '../../../shared/lib/fs-utils.js';
 
 export interface ListItem {
   type: AppliedCompoundItem['type'];
@@ -25,7 +26,7 @@ export function loadCompoundResults(): CompoundResult[] {
 export function saveCompoundResults(results: CompoundResult[]): void {
   mkdirSync(COMPOUND_DIR, { recursive: true });
   const dataFile = join(COMPOUND_DIR, 'history.json');
-  writeFileSync(dataFile, JSON.stringify(results, null, 2));
+  atomicWriteSync(dataFile, JSON.stringify(results, null, 2));
 }
 
 /** 적용 가능한 규칙 (CLAUDE.md에 추가할 항목) */

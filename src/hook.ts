@@ -10,7 +10,7 @@
  */
 import { initArchive, syncMessages, finalizeArchive } from './features/archive/lib/archive-writer.js';
 import { findJsonlPath, jsonlToMessages, extractJsonlMeta } from './features/archive/lib/jsonl-to-archive.js';
-import { loadSession } from './entities/session/index.js';
+import { loadSession } from './entities/session/lib/parser.js';
 import { ANALYSIS } from './shared/lib/constants.js';
 
 interface HookInput {
@@ -94,15 +94,16 @@ function handlePromptSubmit(sessionId: string, _input: HookInput): void {
   syncMessages(sessionId, messages, meta);
 
   // 세션 분석 → 경고 조건 충족 시 Claude 컨텍스트에 주입
-  const alerts = buildSessionAlerts(sessionId);
+  // jsonlPath를 전달하여 디렉토리 재스캔 방지
+  const alerts = buildSessionAlerts(sessionId, jsonlPath);
   if (alerts) {
     process.stdout.write(JSON.stringify({ additionalContext: alerts }));
   }
 }
 
 /** 현재 세션을 분석하여 경고 메시지 생성 */
-function buildSessionAlerts(sessionId: string): string | null {
-  const session = loadSession(sessionId);
+function buildSessionAlerts(sessionId: string, jsonlPath?: string): string | null {
+  const session = loadSession(sessionId, jsonlPath);
   if (!session) return null;
 
   const warnings: string[] = [];
@@ -149,8 +150,8 @@ function handleSessionStop(sessionId: string): void {
   const messages = jsonlToMessages(jsonlPath);
   const meta = extractJsonlMeta(jsonlPath);
 
-  // 기존 파서로 통계 데이터 가져오기
-  const parsed = loadSession(sessionId);
+  // 기존 파서로 통계 데이터 가져오기 (이미 알고 있는 경로 전달로 디렉토리 스캔 생략)
+  const parsed = loadSession(sessionId, jsonlPath);
 
   finalizeArchive(sessionId, {
     project: parsed?.project ?? meta.project,

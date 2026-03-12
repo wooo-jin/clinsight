@@ -2,7 +2,7 @@
  * JSONL 세션 파일을 ArchivedMessage 배열로 변환
  * 세션 종료 시 호출되어 완전한 대화 기록을 생성
  */
-import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, statSync, openSync, readSync, closeSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import type {
@@ -18,13 +18,20 @@ const PROJECTS_DIR = join(homedir(), '.claude', 'projects');
 /** JSONL 파일 최대 읽기 크기 (50MB) — OOM 방지 */
 const MAX_JSONL_SIZE = 50 * 1024 * 1024;
 
-/** 크기 제한 적용된 JSONL 읽기 */
+/** 크기 제한 적용된 JSONL 읽기 (OOM 방지: 대용량 파일에서 전체 로드 없이 제한 크기만 읽음) */
 function readJsonlSafe(filePath: string): string {
   const fileSize = statSync(filePath).size;
-  if (fileSize > MAX_JSONL_SIZE) {
-    return readFileSync(filePath, { encoding: 'utf-8', flag: 'r' }).slice(0, MAX_JSONL_SIZE);
+  if (fileSize <= MAX_JSONL_SIZE) {
+    return readFileSync(filePath, 'utf-8');
   }
-  return readFileSync(filePath, 'utf-8');
+  const buf = Buffer.alloc(MAX_JSONL_SIZE);
+  const fd = openSync(filePath, 'r');
+  try {
+    readSync(fd, buf, 0, MAX_JSONL_SIZE, 0);
+  } finally {
+    closeSync(fd);
+  }
+  return buf.toString('utf-8');
 }
 
 /** JSONL 파일에서 메시지 파싱 */

@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, existsSync, statSync } from 'fs';
+import { readFileSync, readdirSync, existsSync, statSync, openSync, readSync, closeSync } from 'fs';
 import { join, basename } from 'path';
 import type {
   ParsedSession,
@@ -113,15 +113,28 @@ function listAllSessionFiles(): SessionFile[] {
 /** JSONL 파일 최대 읽기 크기 (50MB) — OOM 방지 */
 const MAX_JSONL_SIZE = 50 * 1024 * 1024;
 
+/** 파일 앞부분만 안전하게 읽기 (OOM 방지: 대용량 파일에서 전체 로드 없이 제한 크기만 읽음) */
+function readFileSafe(filePath: string, maxSize: number): string {
+  const fileSize = statSync(filePath).size;
+  if (fileSize <= maxSize) {
+    return readFileSync(filePath, 'utf-8');
+  }
+  // 대용량 파일: fd 기반으로 앞부분만 읽기 (readFileSync().slice()는 전체를 메모리에 올림)
+  const buf = Buffer.alloc(maxSize);
+  const fd = openSync(filePath, 'r');
+  try {
+    readSync(fd, buf, 0, maxSize, 0);
+  } finally {
+    closeSync(fd);
+  }
+  return buf.toString('utf-8');
+}
+
 /** JSONL 파싱 */
 function parseJsonl(filePath: string): ProjectMessage[] {
   if (!existsSync(filePath)) return [];
 
-  // 대용량 파일 보호: 파일 크기 확인 후 제한 초과 시 앞부분만 읽기
-  const fileSize = statSync(filePath).size;
-  const rawContent = fileSize > MAX_JSONL_SIZE
-    ? readFileSync(filePath, { encoding: 'utf-8', flag: 'r' }).slice(0, MAX_JSONL_SIZE)
-    : readFileSync(filePath, 'utf-8');
+  const rawContent = readFileSafe(filePath, MAX_JSONL_SIZE);
   const lines = rawContent.split('\n').filter(Boolean);
   const messages: ProjectMessage[] = [];
 
@@ -206,6 +219,7 @@ function loadSessionFromFile(sf: SessionFile): ParsedSession | null {
   const filesRead = Array.from(filesReadSet);
   const filesEdited = Array.from(filesEditedSet);
 
+  // 되돌림 감지는 전체 editOps로 수행 (정확한 분석)
   const revertCount = countReverts(editOps);
 
   // 토큰 사용량
@@ -272,7 +286,7 @@ function loadSessionFromFile(sf: SessionFile): ParsedSession | null {
     revertCount,
     interactionPattern,
     agentTypes,
-    editOps: editOps.slice(0, 20), // compound 분석용, 최대 20개
+    editOps: editOps.slice(0, 20), // compound 프롬프트용 샘플 (revertCount는 전체 editOps로 계산 완료)
   };
 }
 
@@ -295,7 +309,16 @@ export function loadRecentSessions(count: number = 50): ParsedSession[] {
   );
 }
 
-export function loadSession(sessionId: string): ParsedSession | null {
+export function loadSession(sessionId: string, knownJsonlPath?: string): ParsedSession | null {
+  // knownJsonlPath가 제공되면 디렉토리 스캔 생략 (hook에서 이미 경로를 알고 있는 경우)
+  if (knownJsonlPath && existsSync(knownJsonlPath)) {
+    const stat = statSync(knownJsonlPath);
+    const dirName = knownJsonlPath.split('/').slice(-2, -1)[0] ?? '';
+    const project = dirNameToProjectPath(dirName, [knownJsonlPath]);
+    const sf: SessionFile = { sessionId, project, filePath: knownJsonlPath, mtime: stat.mtime };
+    return loadSessionFromFile(sf);
+  }
+
   // 전체 디렉토리 스캔 대신 직접 경로 탐색 (Hook에서 매 프롬프트마다 호출되므로 성능 중요)
   if (!existsSync(PROJECTS_DIR)) return null;
 

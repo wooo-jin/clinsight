@@ -47,17 +47,23 @@ export function analyzeSession(session: ParsedSession): SessionAnalysis {
   }
 
   // 2. 탐색 효율: 읽은 파일 중 편집에 기여한 비율
+  //    편집이 없는 세션(코드 리뷰, 디버깅, 아키텍처 파악 등)은
+  //    탐색 자체가 목적이므로 별도 처리
+  const isExplorationOnly = session.filesEdited.length === 0;
   const readButNotEdited = session.filesRead.filter(
     (f) => !session.filesEdited.includes(f),
   );
-  const explorationEfficiency = session.filesRead.length > 0
-    ? Math.min(100, Math.round(
-        ((session.filesRead.length - readButNotEdited.length) / session.filesRead.length) * 100,
-      ))
-    : 100;
+  const explorationEfficiency = isExplorationOnly
+    ? 100 // 탐색 전용 세션은 읽기 자체가 목적
+    : session.filesRead.length > 0
+      ? Math.min(100, Math.round(
+          ((session.filesRead.length - readButNotEdited.length) / session.filesRead.length) * 100,
+        ))
+      : 100;
 
-  if (readButNotEdited.length > ANALYSIS.UNUSED_READ_WARNING
-    && session.filesEdited.length > 0
+  // 편집이 있는 세션에서만 불필요 탐색 경고 생성
+  if (!isExplorationOnly
+    && readButNotEdited.length > ANALYSIS.UNUSED_READ_WARNING
     && readButNotEdited.length / session.filesEdited.length > 5) {
     suggestions.push({
       type: 'agent',
