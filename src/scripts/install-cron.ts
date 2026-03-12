@@ -17,12 +17,12 @@ const IS_WINDOWS = process.platform === 'win32';
 const CRON_MARKER = 'clinsight';
 const TASK_NAME = 'ClinsightNightlyCompound';
 
-/** 패키지 루트의 dist/cron.js 경로 (npm global install에서도 동작) */
+/** dist/cron.js 경로 (npm global install에서도 동작) */
 function getCronScriptPath(): string {
-  // ESM에서 __dirname 대체
   const thisFile = fileURLToPath(import.meta.url);
-  const projectRoot = dirname(dirname(thisFile)); // scripts/ → src/ → root (or dist/ → root)
-  return join(projectRoot, 'dist', 'cron.js');
+  const distDir = dirname(dirname(thisFile)); // dist/scripts/ → dist/
+  // distDir이 이미 dist/ 폴더이므로 바로 cron.js를 붙임
+  return join(distDir, 'cron.js');
 }
 
 // ── Unix (macOS/Linux) ──
