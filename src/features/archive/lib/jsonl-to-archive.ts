@@ -11,7 +11,7 @@ import type {
   ProjectAssistantMessage,
   ContentBlock,
 } from '../../../shared/types/session.js';
-import type { ArchivedMessage } from './archive-writer.js';
+import type { ArchivedMessage, ToolResult } from './archive-writer.js';
 
 const PROJECTS_DIR = join(homedir(), '.claude', 'projects');
 
@@ -56,23 +56,62 @@ function extractUserText(msg: ProjectUserMessage): string {
   return '';
 }
 
-/** assistant content에서 텍스트 + 도구 목록 추출 */
-function extractAssistantContent(msg: ProjectAssistantMessage): { text: string; toolUses: string[] } {
+/** tool_result content에서 텍스트 추출 */
+function extractToolResultText(content: string | ContentBlock[] | undefined): string {
+  if (!content) return '';
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((b): b is ContentBlock & { text: string } => b.type === 'text' && typeof b.text === 'string')
+      .map((b) => b.text)
+      .join('\n');
+  }
+  return '';
+}
+
+/** 도구 결과 크기 제한 (1개당 최대 2000자) */
+const MAX_TOOL_RESULT_LENGTH = 2000;
+
+/** assistant content에서 텍스트 + 도구 사용/결과 추출 */
+function extractAssistantContent(msg: ProjectAssistantMessage): {
+  text: string;
+  toolUses: string[];
+  toolResults: ToolResult[];
+} {
   const content = msg.message?.content;
-  if (!Array.isArray(content)) return { text: '', toolUses: [] };
+  if (!Array.isArray(content)) return { text: '', toolUses: [], toolResults: [] };
 
   const textParts: string[] = [];
   const toolUses: string[] = [];
+  const toolResults: ToolResult[] = [];
+
+  // tool_use ID → name 매핑 (tool_result와 연결용)
+  const toolIdMap = new Map<string, { name: string; input?: Record<string, unknown> }>();
 
   for (const block of content) {
     if (block.type === 'text' && block.text) {
       textParts.push(block.text);
     } else if (block.type === 'tool_use' && block.name) {
       toolUses.push(block.name);
+      if (block.id) {
+        toolIdMap.set(block.id, { name: block.name, input: block.input });
+      }
+    } else if (block.type === 'tool_result' && block.id) {
+      const toolInfo = toolIdMap.get(block.id);
+      const output = extractToolResultText(block.content);
+      if (toolInfo) {
+        toolResults.push({
+          name: toolInfo.name,
+          input: toolInfo.input,
+          output: output.length > MAX_TOOL_RESULT_LENGTH
+            ? output.slice(0, MAX_TOOL_RESULT_LENGTH) + '\n... (truncated)'
+            : output,
+        });
+      }
     }
   }
 
-  return { text: textParts.join('\n'), toolUses };
+  return { text: textParts.join('\n'), toolUses, toolResults };
 }
 
 /** 세션 ID로 JSONL 파일 경로 찾기 */
@@ -109,13 +148,14 @@ export function jsonlToMessages(filePath: string): ArchivedMessage[] {
       }
     } else if (msg.type === 'assistant') {
       const assistantMsg = msg as ProjectAssistantMessage;
-      const { text, toolUses } = extractAssistantContent(assistantMsg);
+      const { text, toolUses, toolResults } = extractAssistantContent(assistantMsg);
       if (text || toolUses.length > 0) {
         archived.push({
           role: 'assistant',
           content: text || `[도구 사용: ${toolUses.join(', ')}]`,
           timestamp: assistantMsg.timestamp,
           ...(toolUses.length > 0 ? { toolUses } : {}),
+          ...(toolResults.length > 0 ? { toolResults } : {}),
         });
       }
     }

@@ -5,11 +5,18 @@ import { atomicWriteSync } from '../../../shared/lib/fs-utils.js';
 
 const ARCHIVE_DIR = join(homedir(), '.claude', 'clinsight', 'archive');
 
+export interface ToolResult {
+  name: string;
+  input?: Record<string, unknown>;
+  output?: string;
+}
+
 export interface ArchivedMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
   toolUses?: string[];
+  toolResults?: ToolResult[];
 }
 
 export interface ArchivedSession {
