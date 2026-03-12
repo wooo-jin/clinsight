@@ -16,6 +16,7 @@ import { SessionsTab } from '../features/sessions/ui/SessionsTab.js';
 import { CostTab } from '../features/cost/ui/CostTab.js';
 import { CompoundTab } from '../features/compound/ui/CompoundTab.js';
 import { ArchiveTab } from '../features/archive/ui/ArchiveTab.js';
+import { SettingsTab } from '../features/settings/ui/SettingsTab.js';
 import { DEFAULT_SESSION_COUNT } from '../shared/lib/constants.js';
 
 const TABS = [
@@ -25,6 +26,7 @@ const TABS = [
   { key: '4', label: 'Cost', icon: '💰' },
   { key: '5', label: 'Compound', icon: '📦' },
   { key: '6', label: 'Archive', icon: '📂' },
+  { key: '7', label: 'Settings', icon: '⚙️' },
 ] as const;
 
 const REFRESH_INTERVAL_MS = 60_000; // 1분마다 갱신
@@ -161,12 +163,13 @@ export function App() {
           />
         )}
         {activeTab === 5 && <ArchiveTab maxHeight={termHeight - 7} />}
+        {activeTab === 6 && <SettingsTab />}
       </Box>
 
       {/* 푸터 */}
       <Box marginTop={1}>
         <Text dimColor>
-          [1-6] 탭 전환  [Tab] 이동  [r] 새로고침  [s] 내보내기  [q] 종료
+          [1-7] 탭 전환  [Tab] 이동  [r] 새로고침  [s] 내보내기  [q] 종료
         </Text>
       </Box>
       {exportMsg && (
