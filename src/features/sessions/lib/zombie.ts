@@ -175,10 +175,14 @@ export function scanZombies(): ZombieInfo {
   const allProcesses = getAllClaudeProcesses();
 
   const zombieProcesses = allProcesses.filter((p) => {
+    // 현재 foreground 세션에 연결된 프로세스는 정상
     if (activePids.has(p.pid)) return false;
-    if (IS_WINDOWS) return true; // Windows에서는 세션 없는 프로세스가 좀비 후보
+    if (IS_WINDOWS) return true;
+    // TTY 없는 프로세스 → 좀비
     if (p.tty === '??' || p.tty === '?') return true;
-    return false;
+    // TTY 있지만 foreground 세션에 없는 프로세스 → 좀비 후보
+    // (터미널이 닫혔지만 프로세스가 살아있는 경우)
+    return true;
   });
 
   const orphanDirs = findOrphanDirs();
