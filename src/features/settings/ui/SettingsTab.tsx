@@ -50,7 +50,7 @@ export function SettingsTab() {
   const [config, setConfig] = useState<ClinsightConfig>(() => loadConfig());
   const [cursor, setCursor] = useState(0);
   const [saved, setSaved] = useState(false);
-  const [archiveInfo] = useState(() => getArchiveSize());
+  const [archiveInfo, setArchiveInfo] = useState(() => getArchiveSize());
 
   useInput((input: string, key: { upArrow?: boolean; downArrow?: boolean; leftArrow?: boolean; rightArrow?: boolean }) => {
     if (key.upArrow) {
@@ -71,6 +71,7 @@ export function SettingsTab() {
         const updated = { ...prev, [setting.key]: newVal };
         saveConfig(updated);
         setSaved(true);
+        setArchiveInfo(getArchiveSize());
         setTimeout(() => setSaved(false), 2000);
         return updated;
       });
@@ -83,6 +84,7 @@ export function SettingsTab() {
         const updated = { ...prev, [setting.key]: newVal };
         saveConfig(updated);
         setSaved(true);
+        setArchiveInfo(getArchiveSize());
         setTimeout(() => setSaved(false), 2000);
         return updated;
       });

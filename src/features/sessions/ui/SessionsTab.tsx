@@ -103,9 +103,9 @@ export function SessionsTab({ sessions, analyses }: SessionsTabProps) {
         setTimeout(() => setStatusMsg(''), 6000);
       }, 50);
     }
-    // o: 새 터미널에서 세션 열기
+    // o: 새 터미널에서 세션 열기 (일반 목록 모드에서만)
     const currentSessions = sessions.slice(pageStart, pageEnd);
-    if (input === 'o' && currentSessions[selectedIdx]) {
+    if (viewMode === 'list' && input === 'o' && currentSessions[selectedIdx]) {
       const session = currentSessions[selectedIdx];
       const sid = session.sessionId;
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-/.test(sid)) return;

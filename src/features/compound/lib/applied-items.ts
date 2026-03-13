@@ -27,5 +27,5 @@ export function findAppliedItem(
   type: AppliedCompoundItem['type'],
   text: string,
 ): AppliedCompoundItem | undefined {
-  return items.find((i) => i.type === type && i.text === text);
+  return items.find((i) => i.type === type && i.text.trim().toLowerCase() === text.trim().toLowerCase());
 }

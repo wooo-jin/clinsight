@@ -151,7 +151,7 @@ function buildSessionAlerts(sessionId: string, jsonlPath?: string): string | nul
   }
 
   // 4. 세션 길이 경고
-  const durationCritical = (ANALYSIS as Record<string, number>).SESSION_DURATION_CRITICAL ?? 90;
+  const durationCritical = ANALYSIS.SESSION_DURATION_CRITICAL;
   if (session.durationMinutes > durationCritical) {
     warnings.push(`[Clinsight] 세션 ${session.durationMinutes}분 진행 중. 새 세션으로 분리하는 것을 권장합니다.`);
   } else if (session.durationMinutes > ANALYSIS.SESSION_DURATION_WARNING) {

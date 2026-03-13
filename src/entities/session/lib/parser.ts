@@ -26,11 +26,11 @@ export function projectPathToDirName(projectPath: string): string {
   return projectPath.replace(/^\//, '-').replace(/\//g, '-');
 }
 
-/** JSONL에서 첫 user 메시지의 cwd 추출 (하이픈 경로 역변환 불가 → cwd가 유일한 소스) */
+/** JSONL에서 첫 user 메시지의 cwd 추출 (앞부분만 읽어 메모리 절약) */
 function extractCwdFromJsonl(filePath: string): string | null {
   try {
-    const content = readFileSync(filePath, 'utf-8');
-    // 전체 파싱 없이 첫 user 줄에서 cwd만 추출
+    // 첫 user 메시지는 파일 앞부분에 있으므로 8KB만 읽음
+    const { content } = readFileSafe(filePath, 8192);
     for (const line of content.split('\n')) {
       if (!line.includes('"user"')) continue;
       try {

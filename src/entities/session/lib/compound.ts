@@ -70,6 +70,7 @@ function spawnWithStdin(cmd: string, args: string[], input: string, timeoutMs: n
     }, timeoutMs);
 
     child.stdout.on('data', (chunk: Buffer) => chunks.push(chunk));
+    child.stderr.resume(); // stderr 소비하여 백프레셔 방지
     child.on('close', (code) => {
       clearTimeout(timer);
       if (killed) return;
@@ -124,6 +125,9 @@ export async function runCompoundAsync(sessions: ParsedSession[]): Promise<Compo
       complexity: 'low',
       summary: `분석 실패: ${msg}`,
     };
+    errResult.sessionCount = sessions.length;
+    errResult.dateRange = getDateRange(sessions);
+    saveCompoundResult(errResult);
     return errResult;
   }
 }
@@ -163,6 +167,9 @@ export function runCompound(sessions: ParsedSession[]): CompoundResult {
       complexity: 'low',
       summary: `동기 분석 실패: ${msg}`,
     };
+    errResult.sessionCount = sessions.length;
+    errResult.dateRange = getDateRange(sessions);
+    saveCompoundResult(errResult);
     return errResult;
   }
 }

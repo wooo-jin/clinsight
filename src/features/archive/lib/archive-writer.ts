@@ -4,7 +4,7 @@ import { homedir } from 'os';
 import { atomicWriteSync } from '../../../shared/lib/fs-utils.js';
 import { loadConfig } from '../../../shared/lib/config.js';
 
-const ARCHIVE_DIR = join(homedir(), '.claude', 'clinsight', 'archive');
+export const ARCHIVE_DIR = join(homedir(), '.claude', 'clinsight', 'archive');
 
 export interface ToolResult {
   name: string;
@@ -284,4 +284,3 @@ export function generateSessionSummary(
   return summary;
 }
 
-export { ARCHIVE_DIR };

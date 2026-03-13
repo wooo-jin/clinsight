@@ -24,7 +24,7 @@ export function DashboardTab({ sessions, analyses }: DashboardTabProps) {
           <Text wrap="truncate">비용: ${stats.today.cost.toFixed(2)}</Text>
           <Text wrap="truncate">효율: {stats.today.avgEfficiency}/100</Text>
         </Panel>
-        <Panel title="📊 이번 주" width={26}>
+        <Panel title="📊 최근 7일" width={26}>
           <Text wrap="truncate">세션: {stats.week.count}</Text>
           <Text wrap="truncate">토큰: {formatTokens(stats.week.tokens)}</Text>
           <Text wrap="truncate">비용: ${stats.week.cost.toFixed(2)}</Text>

@@ -118,6 +118,7 @@ async function main() {
 
     if (todaySessions.length === 0) {
       log('오늘 세션이 없습니다. 종료합니다.');
+      releaseLock();
       return;
     }
 

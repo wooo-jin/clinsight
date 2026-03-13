@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Box, Text } from 'ink';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
@@ -25,6 +25,14 @@ function getCompoundSection(target: string): string[] {
   const section = nextH2 !== -1 ? afterSection.slice(0, nextH2 + 1) : afterSection;
 
   return section.split('\n').filter((l) => l.trim()).slice(0, 15); // 최대 15줄
+}
+
+/** useMemo 래퍼: 렌더링 중 파일 I/O를 캐싱 */
+function useCompoundSection(target: string, enabled: boolean): string[] {
+  return useMemo(() => {
+    if (!enabled) return [];
+    return getCompoundSection(target);
+  }, [target, enabled]);
 }
 
 type ApplyMode = 'none' | 'selectTarget' | 'history';
@@ -85,6 +93,9 @@ export function CompoundResultPanel({
       </Box>
     );
   };
+
+  const currentTarget = targets[targetCursor]?.value ?? 'global';
+  const compoundSectionLines = useCompoundSection(currentTarget, applyMode === 'selectTarget');
 
   return (
     <>
@@ -154,15 +165,13 @@ export function CompoundResultPanel({
             <Text dimColor>[j/k] 이동  [Enter] 선택  [Esc] 취소</Text>
           </Panel>
           <Panel title="📄 현재 Compound Insights">
-            {(() => {
-              const lines = getCompoundSection(targets[targetCursor]?.value ?? 'global');
-              if (lines.length === 0) return <Text dimColor>(아직 적용된 규칙 없음)</Text>;
-              return lines.map((line, i) => (
+            {compoundSectionLines.length === 0
+              ? <Text dimColor>(아직 적용된 규칙 없음)</Text>
+              : compoundSectionLines.map((line, i) => (
                 <Text key={i} wrap="truncate" dimColor={!line.startsWith('###')}>
                   {line}
                 </Text>
-              ));
-            })()}
+              ))}
           </Panel>
         </>
       )}

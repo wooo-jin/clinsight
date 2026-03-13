@@ -22,9 +22,9 @@ export function atomicWriteSync(filePath: string, data: string): void {
  */
 export function lockFileSync<T>(lockPath: string, fn: () => T): T {
   const fd = openSync(lockPath, fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL);
+  writeFileSync(fd, String(process.pid));
+  closeSync(fd);
   try {
-    writeFileSync(fd, String(process.pid));
-    closeSync(fd);
     return fn();
   } finally {
     try { unlinkSync(lockPath); } catch { /* ignore */ }
