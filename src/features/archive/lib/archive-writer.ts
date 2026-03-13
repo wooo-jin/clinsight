@@ -28,6 +28,8 @@ export interface ArchivedSession {
   status: 'active' | 'completed';
   durationMinutes: number;
   model: string;
+  /** 세션 내용 한 줄 요약 */
+  summary?: string;
   messages: ArchivedMessage[];
   stats: {
     userMessageCount: number;
@@ -110,6 +112,12 @@ export function syncMessages(
   session.project = meta.project !== 'unknown' ? meta.project : session.project;
   session.stats.userMessageCount = messages.filter((m) => m.role === 'user').length;
 
+  // 사용자 프롬프트 기반 요약 업데이트
+  const userPrompts = messages
+    .filter((m) => m.role === 'user')
+    .map((m) => m.content);
+  session.summary = generateSessionSummary(userPrompts, []);
+
   atomicWriteSync(archivePath, JSON.stringify(session, null, 2));
 }
 
@@ -172,6 +180,7 @@ export function finalizeArchive(
     status: 'completed',
     durationMinutes: parsed.durationMinutes,
     model: parsed.model,
+    summary: generateSessionSummary(parsed.userPrompts, parsed.filesEdited),
     messages: parsed.messages,
     stats: {
       userMessageCount: parsed.userMessageCount,
@@ -241,6 +250,39 @@ export function getArchiveSize(): { totalBytes: number; sessionCount: number; da
   }
 
   return { totalBytes, sessionCount, dayCount };
+}
+
+/**
+ * 사용자 프롬프트와 편집 파일 목록으로 세션 한 줄 요약 생성
+ * - 첫 번째 의미 있는 프롬프트를 기반으로 요약
+ * - 편집 파일이 있으면 파일 수 부기
+ */
+export function generateSessionSummary(
+  userPrompts: string[],
+  filesEdited: string[],
+): string {
+  // 의미 있는 첫 프롬프트 찾기 (너무 짧은 것 건너뛰기)
+  const meaningful = userPrompts.find((p) => p.replace(/\s/g, '').length > 5)
+    ?? userPrompts[0]
+    ?? '';
+
+  if (!meaningful) return '';
+
+  // 개행/탭 → 공백, 연속 공백 제거
+  let summary = meaningful.replace(/[\n\r\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+
+  // 최대 80자로 제한
+  const maxLen = 80;
+  if (summary.length > maxLen) {
+    summary = summary.slice(0, maxLen - 1) + '…';
+  }
+
+  // 편집 파일이 있으면 부기
+  if (filesEdited.length > 0) {
+    summary += ` [${filesEdited.length}개 파일 수정]`;
+  }
+
+  return summary;
 }
 
 export { ARCHIVE_DIR };

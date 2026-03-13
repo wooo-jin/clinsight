@@ -4,6 +4,7 @@ import { existsSync, readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { Panel } from '../../../shared/ui/index.js';
+import { pathBasename } from '../../../shared/lib/format.js';
 import { ARCHIVE_DIR, type ArchivedSession } from '../lib/archive-writer.js';
 
 /** 아카이브 디렉토리에서 세션 목록 로드 */
@@ -131,6 +132,7 @@ export function ArchiveTab({ maxHeight: _mh = 20 }: { maxHeight?: number }) {
       <Box flexDirection="column">
         <Panel title={`📂 ${selected.date} ${formatTime(s.startedAt)} — ${truncate(s.project, 40)}`}>
           <Text>{s.status === 'completed' ? '✓' : '⏳'} {s.durationMinutes}분 | {s.messages.length}msg | ${s.stats.estimatedCostUsd.toFixed(2)}</Text>
+          {s.summary && <Text dimColor>요약: {s.summary}</Text>}
         </Panel>
         <Panel title={`💬 ${msgStart + 1}-${msgEnd}/${s.messages.length} (p.${detailMsgPage + 1}/${msgPages})`}>
           {s.messages.slice(msgStart, msgEnd).map((msg, i) => (
@@ -161,12 +163,14 @@ export function ArchiveTab({ maxHeight: _mh = 20 }: { maxHeight?: number }) {
     }
     const isSel = globalIdx === safeCursor;
     const icon = s.status === 'completed' ? '✓' : '⏳';
-    const prompt = truncate(
-      (s.messages.find((m) => m.role === 'user')?.content ?? '').replace(/\n/g, ' '),
-      40,
-    );
-    const line = `${isSel ? '▸' : ' '} ${icon} ${formatTime(s.startedAt)} | ${s.durationMinutes}분 | ${s.messages.length}msg | $${s.stats.estimatedCostUsd.toFixed(2)} | ${prompt}`;
+    const projectName = pathBasename(s.project);
+    const summaryText = s.summary
+      ?? truncate((s.messages.find((m) => m.role === 'user')?.content ?? '').replace(/\n/g, ' '), 40);
+    const line = `${isSel ? '▸' : ' '} ${icon} ${formatTime(s.startedAt)} | ${s.durationMinutes}분 | $${s.stats.estimatedCostUsd.toFixed(2)} | ${projectName}`;
     lines.push(line);
+    selLines.push(isSel);
+    // 요약을 두 번째 줄로 표시
+    lines.push(`    ${truncate(summaryText, 70)}`);
     selLines.push(isSel);
   }
 
