@@ -15,30 +15,30 @@ export function DashboardTab({ sessions, analyses }: DashboardTabProps) {
 
   return (
     <Box flexDirection="column" gap={1}>
-      {/* 기간별 요약 */}
-      <Box gap={2}>
-        <Panel title="📊 오늘">
-          <Text>세션: {stats.today.count}</Text>
-          <Text>토큰: {formatTokens(stats.today.tokens)}</Text>
-          <Text>비용: ${stats.today.cost.toFixed(2)}</Text>
-          <Text>효율: {stats.today.avgEfficiency}/100</Text>
+      {/* 기간별 요약 — 각 패널에 고정 width */}
+      <Box gap={1}>
+        <Panel title="📊 오늘" width={26}>
+          <Text wrap="truncate">세션: {stats.today.count}</Text>
+          <Text wrap="truncate">토큰: {formatTokens(stats.today.tokens)}</Text>
+          <Text wrap="truncate">비용: ${stats.today.cost.toFixed(2)}</Text>
+          <Text wrap="truncate">효율: {stats.today.avgEfficiency}/100</Text>
         </Panel>
-        <Panel title="📊 이번 주">
-          <Text>세션: {stats.week.count}</Text>
-          <Text>토큰: {formatTokens(stats.week.tokens)}</Text>
-          <Text>비용: ${stats.week.cost.toFixed(2)}</Text>
-          <Text>효율: {stats.week.avgEfficiency}/100</Text>
+        <Panel title="📊 이번 주" width={26}>
+          <Text wrap="truncate">세션: {stats.week.count}</Text>
+          <Text wrap="truncate">토큰: {formatTokens(stats.week.tokens)}</Text>
+          <Text wrap="truncate">비용: ${stats.week.cost.toFixed(2)}</Text>
+          <Text wrap="truncate">효율: {stats.week.avgEfficiency}/100</Text>
         </Panel>
-        <Panel title="📊 이번 달">
-          <Text>세션: {stats.month.count}</Text>
-          <Text>토큰: {formatTokens(stats.month.tokens)}</Text>
-          <Text>비용: ${stats.month.cost.toFixed(2)}</Text>
-          <Text>효율: {stats.month.avgEfficiency}/100</Text>
+        <Panel title="📊 이번 달" width={26}>
+          <Text wrap="truncate">세션: {stats.month.count}</Text>
+          <Text wrap="truncate">토큰: {formatTokens(stats.month.tokens)}</Text>
+          <Text wrap="truncate">비용: ${stats.month.cost.toFixed(2)}</Text>
+          <Text wrap="truncate">효율: {stats.month.avgEfficiency}/100</Text>
         </Panel>
       </Box>
 
       {/* 추이 그래프 */}
-      <Box gap={2}>
+      <Box gap={1}>
         <Panel title="🔥 7일 비용 추이">
           <SparkLine
             data={stats.dailyCosts}
@@ -54,34 +54,34 @@ export function DashboardTab({ sessions, analyses }: DashboardTabProps) {
         </Panel>
       </Box>
 
-      {/* 시간대별 활동 + 주간 요일별 */}
-      <Box gap={2}>
-        <Panel title="🕐 시간대별 활동 (오늘)">
-          <HourlyHeatmap data={stats.hourlyCosts} />
-        </Panel>
-        <Panel title="📅 주간 요일별 사용량">
-          <SparkLine
-            data={stats.weekdayCosts}
-            color="yellow"
-            formatValue={(v) => `$${v.toFixed(0)}`}
-            labels={['월', '화', '수', '목', '금', '토', '일']}
-          />
-          <Box marginTop={1}>
-            <Text dimColor>세션: </Text>
-            {stats.weekdaySessions.map((count: number, i: number) => (
-              <Box key={i} width={10} justifyContent="center">
-                <Text dimColor>{count}개</Text>
-              </Box>
-            ))}
-          </Box>
-        </Panel>
-      </Box>
+      {/* 시간대별 활동 — 세로 배치 (24칸은 가로로 두 패널 못 담음) */}
+      <Panel title="🕐 시간대별 활동 (오늘)">
+        <HourlyHeatmap data={stats.hourlyCosts} />
+      </Panel>
 
-      {/* 기능 사용 현황 */}
+      {/* 주간 요일별 사용량 */}
+      <Panel title="📅 주간 요일별 사용량">
+        <SparkLine
+          data={stats.weekdayCosts}
+          color="yellow"
+          formatValue={(v) => `$${v.toFixed(0)}`}
+          labels={['월', '화', '수', '목', '금', '토', '일']}
+        />
+        <Box>
+          <Text dimColor>세션: </Text>
+          {stats.weekdaySessions.map((count: number, i: number) => (
+            <Box key={i} width={10} justifyContent="center">
+              <Text dimColor>{count}개</Text>
+            </Box>
+          ))}
+        </Box>
+      </Panel>
+
+      {/* 기능 사용 현황 — flexWrap으로 줄바꿈 허용 */}
       <Panel title="🛠️ 기능 사용 현황 (전체)">
-        <Box gap={3}>
+        <Box flexWrap="wrap" columnGap={2}>
           {stats.featureRanking.map(([label, count]: [string, number]) => (
-            <Text key={label}>
+            <Text key={label} wrap="truncate">
               <Text bold color="cyan">{label}</Text>
               <Text dimColor> {count}회</Text>
             </Text>
@@ -93,14 +93,10 @@ export function DashboardTab({ sessions, analyses }: DashboardTabProps) {
       {stats.topSuggestions.length > 0 && (
         <Panel title="💡 개선 제안">
           {stats.topSuggestions.map((s: Suggestion, i: number) => (
-            <Box key={i}>
-              <Text color={severityColor(s.severity)}>
-                {severityIcon(s.severity)} {s.message}
-              </Text>
-              {s.tokensSaveable && (
-                <Text dimColor> (토큰 ~{formatTokens(s.tokensSaveable)} 절약 가능)</Text>
-              )}
-            </Box>
+            <Text key={i} wrap="truncate" color={severityColor(s.severity)}>
+              {severityIcon(s.severity)} {s.message}
+              {s.tokensSaveable ? ` (토큰 ~${formatTokens(s.tokensSaveable)} 절약)` : ''}
+            </Text>
           ))}
         </Panel>
       )}
@@ -207,7 +203,6 @@ function computeStats(sessions: ParsedSession[], analyses: SessionAnalysis[]) {
   const weekdaySessions = new Array(7).fill(0) as number[];
   const weekSessions = sessions.filter((s) => s.startTime >= weekStart);
   for (const s of weekSessions) {
-    // JS: 0=일, 1=월 → 변환: 월=0, 화=1, ..., 일=6
     const jsDay = s.startTime.getDay();
     const dayIdx = jsDay === 0 ? 6 : jsDay - 1;
     weekdayCosts[dayIdx] += s.estimatedCostUsd;
@@ -232,6 +227,14 @@ const HEAT_BLOCKS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
 
 function HourlyHeatmap({ data }: { data: number[] }) {
   const max = Math.max(...data, 0.01);
+  // 6시간씩 4그룹으로 나눠서 표시 (가독성 향상)
+  const groups = [
+    { label: '새벽', range: [0, 5] },
+    { label: '오전', range: [6, 11] },
+    { label: '오후', range: [12, 17] },
+    { label: '저녁', range: [18, 23] },
+  ];
+
   return (
     <Box flexDirection="column">
       <Box>
@@ -239,24 +242,25 @@ function HourlyHeatmap({ data }: { data: number[] }) {
           const idx = Math.round((v / max) * (HEAT_BLOCKS.length - 1));
           const color = v === 0 ? 'gray' : v >= max * 0.7 ? 'red' : v >= max * 0.3 ? 'yellow' : 'green';
           return (
-            <Box key={i} width={3}>
-              <Text color={color}>{HEAT_BLOCKS[idx]}</Text>
-            </Box>
+            <Text key={i} color={color}>{HEAT_BLOCKS[idx]} </Text>
           );
         })}
       </Box>
       <Box>
         {data.map((_, i) => (
-          <Box key={i} width={3}>
-            <Text dimColor>{i < 10 ? ` ${i}` : String(i)}</Text>
-          </Box>
+          <Text key={i} dimColor>{String(i).padStart(2)} </Text>
         ))}
       </Box>
-      <Box marginTop={1}>
-        <Text dimColor>
-          총 ${data.reduce((a, b) => a + b, 0).toFixed(2)} |
-          피크: {data.indexOf(Math.max(...data))}시
-        </Text>
+      <Box marginTop={1} gap={2}>
+        {groups.map((g) => {
+          const sum = data.slice(g.range[0], g.range[1] + 1).reduce((a, b) => a + b, 0);
+          return (
+            <Text key={g.label} dimColor>
+              {g.label} ${sum.toFixed(1)}
+            </Text>
+          );
+        })}
+        <Text dimColor>| 피크: {data.indexOf(Math.max(...data))}시</Text>
       </Box>
     </Box>
   );
@@ -273,4 +277,3 @@ function severityColor(s: Suggestion['severity']): string {
 function severityIcon(s: Suggestion['severity']): string {
   return s === 'critical' ? '🔴' : s === 'warning' ? '🟡' : '🔵';
 }
-

@@ -79,7 +79,7 @@ export function CompoundResultPanel({
 
     return (
       <Box key={`i-${globalIdx}`}>
-        <Text color={isSelected ? 'cyan' : undefined} bold={isSelected} inverse={isSelected}>
+        <Text wrap="truncate" color={isSelected ? 'cyan' : undefined} bold={isSelected} inverse={isSelected}>
           {isSelected ? '▸' : ' '} <Text color={statusColor}>{statusIcon}</Text> {item.text}
         </Text>
       </Box>
@@ -91,22 +91,22 @@ export function CompoundResultPanel({
       <Panel title="📦 컴파운드 현황">
         {latest ? (
           <>
-            <Text>마지막 실행: {latest.date} ✓</Text>
+            <Text wrap="truncate">마지막 실행: {latest.date} ✓</Text>
             {latest.sessionCount != null && (
-              <Text dimColor>
+              <Text wrap="truncate" dimColor>
                 조회 세션: {latest.sessionCount}개
                 {latest.dateRange ? ` | ${latest.dateRange.from} ~ ${latest.dateRange.to}` : ''}
               </Text>
             )}
             {latest.classification && (
               <>
-                <Text>요약: <Text color="cyan">{latest.classification.summary}</Text></Text>
-                <Text dimColor>
+                <Text wrap="truncate">요약: <Text color="cyan">{latest.classification.summary}</Text></Text>
+                <Text wrap="truncate" dimColor>
                   유형: {latest.classification.types.join(', ')} | 도메인: {latest.classification.domains.join(', ')} | 복잡도: {latest.classification.complexity}
                 </Text>
               </>
             )}
-            <Text>
+            <Text wrap="truncate">
               예방규칙: {latest.preventionRules?.length ?? 0}개 | 패턴: {latest.patterns.length}개 | 솔루션: {latest.solutions.length}개 | 컨벤션: {latest.conventions.length}개
             </Text>
           </>
@@ -134,7 +134,7 @@ export function CompoundResultPanel({
             if (item.isHeader) {
               return <Text key={`ih-${i}`} bold color="cyan">{item.label}</Text>;
             }
-            return <Text key={`ii-${i}`} dimColor>  {item.text}</Text>;
+            return <Text key={`ii-${i}`} wrap="truncate" dimColor>  {item.text}</Text>;
           })}
         </Panel>
       )}
@@ -158,8 +158,8 @@ export function CompoundResultPanel({
               const lines = getCompoundSection(targets[targetCursor]?.value ?? 'global');
               if (lines.length === 0) return <Text dimColor>(아직 적용된 규칙 없음)</Text>;
               return lines.map((line, i) => (
-                <Text key={i} dimColor={!line.startsWith('###')}>
-                  {line.length > 100 ? line.slice(0, 99) + '…' : line}
+                <Text key={i} wrap="truncate" dimColor={!line.startsWith('###')}>
+                  {line}
                 </Text>
               ));
             })()}
@@ -178,6 +178,7 @@ export function CompoundResultPanel({
             return (
               <Box key={i}>
                 <Text
+                  wrap="truncate"
                   color={selected ? 'cyan' : undefined}
                   bold={selected}
                   inverse={selected}
@@ -197,7 +198,7 @@ export function CompoundResultPanel({
       {applyMode === 'none' && results.length > 1 && (
         <Panel title="📜 실행 이력">
           {results.slice(0, 5).map((r, i) => (
-            <Text key={i} dimColor={i > 0}>
+            <Text key={i} wrap="truncate" dimColor={i > 0}>
               {r.date} | 패턴 {r.patterns.length} | 솔루션 {r.solutions.length} |
               컨벤션 {r.conventions.length}
             </Text>

@@ -2,8 +2,10 @@
  * Claude Code settings.json에 clinsight hooks 등록/해제
  */
 import { existsSync, readFileSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { homedir } from 'os';
+import { execSync } from 'child_process';
+import { fileURLToPath } from 'url';
 import { atomicWriteSync } from '../../../shared/lib/fs-utils.js';
 
 const CLAUDE_DIR = join(homedir(), '.claude');
@@ -20,23 +22,35 @@ interface Settings {
   [key: string]: unknown;
 }
 
-/** hook.js 경로 자동 감지 */
-function getHookScriptPath(): string {
-  // 설치된 경우: ~/.clinsight/dist/hook.js
-  const installedPath = join(homedir(), '.clinsight', 'dist', 'hook.js');
-  if (existsSync(installedPath)) return installedPath;
-
-  // 개발 중: 현재 프로젝트의 dist/hook.js
-  const devPath = join(process.cwd(), 'dist', 'hook.js');
-  if (existsSync(devPath)) return devPath;
-
-  // fallback
-  return installedPath;
-}
-
+/**
+ * hook 실행 명령어 생성
+ * 우선순위:
+ *   1. clinsight-hook bin이 PATH에 있으면 그대로 사용 (npm global install)
+ *   2. 현재 패키지의 dist/hook.js를 node 절대경로로 실행 (소스 설치)
+ */
 function buildHookCommand(event: string): string {
-  const scriptPath = getHookScriptPath();
-  return `node ${scriptPath} ${event}`;
+  // 1. clinsight-hook bin이 PATH에 있는지 확인
+  try {
+    const binPath = execSync('which clinsight-hook 2>/dev/null || where clinsight-hook 2>nul', {
+      encoding: 'utf-8',
+      timeout: 3000,
+    }).trim();
+    if (binPath && existsSync(binPath)) {
+      return `${binPath} ${event}`;
+    }
+  } catch { /* not found */ }
+
+  // 2. 이 파일 기준으로 dist/hook.js 경로 계산
+  const thisFile = fileURLToPath(import.meta.url);
+  const distDir = dirname(dirname(dirname(dirname(thisFile)))); // lib/ → archive/ → features/ → dist or src
+  const hookFromDist = join(distDir, 'hook.js');
+  if (existsSync(hookFromDist)) {
+    return `${process.execPath} ${hookFromDist} ${event}`;
+  }
+
+  // 3. cwd 기반 fallback (개발 환경)
+  const devPath = join(process.cwd(), 'dist', 'hook.js');
+  return `${process.execPath} ${devPath} ${event}`;
 }
 
 function makeHookEntry(event: string): HookEntry {

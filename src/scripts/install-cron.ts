@@ -9,7 +9,7 @@
  */
 import { execSync } from 'child_process';
 import { writeFileSync, unlinkSync } from 'fs';
-import { tmpdir } from 'os';
+import { tmpdir, homedir } from 'os';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -31,9 +31,10 @@ const CRON_SCHEDULE = '0 23 * * *';
 
 function getCronCommand(): string {
   const cronScript = getCronScriptPath();
-  // 크론 환경은 최소 PATH만 사용하므로 node 절대 경로 필요 (nvm/fnm 등)
   const nodePath = process.execPath;
-  return `${nodePath} "${cronScript}" >> ~/.claude/clinsight/cron.log 2>&1`;
+  // 크론 환경은 ~를 확장하지 않으므로 절대 경로 사용
+  const logPath = join(homedir(), '.claude', 'clinsight', 'cron.log');
+  return `${nodePath} "${cronScript}" >> "${logPath}" 2>&1`;
 }
 
 function getCurrentCrontab(): string {
@@ -67,7 +68,7 @@ function installUnix(): void {
 
   if (current.includes(CRON_MARKER)) {
     console.log('이미 크론잡이 등록되어 있습니다.');
-    console.log('제거하려면: pnpm cron:install remove');
+    console.log('제거하려면: clinsight-cron-install remove');
     return;
   }
 
@@ -78,7 +79,7 @@ function installUnix(): void {
   console.log('✓ 크론잡이 등록되었습니다.');
   console.log(`  스케줄: 매일 23:00`);
   console.log(`  로그: ~/.claude/clinsight/cron.log`);
-  console.log(`  제거: pnpm cron:install remove`);
+  console.log(`  제거: clinsight-cron-install remove`);
 }
 
 function removeUnix(): void {
@@ -101,7 +102,7 @@ function installWindows(): void {
     try {
       execSync(`schtasks /Query /TN "${TASK_NAME}" 2>nul`, { encoding: 'utf-8' });
       console.log('이미 예약 작업이 등록되어 있습니다.');
-      console.log(`제거하려면: pnpm cron:install remove`);
+      console.log(`제거하려면: clinsight-cron-install remove`);
       return;
     } catch { /* 태스크 없음 — 계속 진행 */ }
 
@@ -113,7 +114,7 @@ function installWindows(): void {
     console.log('✓ 예약 작업이 등록되었습니다.');
     console.log(`  스케줄: 매일 23:00`);
     console.log(`  태스크 이름: ${TASK_NAME}`);
-    console.log(`  제거: pnpm cron:install remove`);
+    console.log(`  제거: clinsight-cron-install remove`);
   } catch (err) {
     console.error('✗ 예약 작업 등록 실패 (관리자 권한이 필요할 수 있습니다)');
     if (err instanceof Error) console.error(`  ${err.message}`);
