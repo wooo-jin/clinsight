@@ -8,13 +8,14 @@
     <a href="#quickstart">Quick Start</a> &middot;
     <a href="INSTALL.md">설치 가이드</a> &middot;
     <a href="#features">기능</a> &middot;
-    <a href="#how-it-works">작동 원리</a>
+    <a href="#how-it-works">작동 원리</a> &middot;
+    <a href="README.en.md">English</a>
   </p>
   <p align="center">
     <img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen" alt="Node">
     <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-blue" alt="Platform">
     <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
-    <img src="https://img.shields.io/badge/tests-107%20passed-brightgreen" alt="Tests">
+    <img src="https://img.shields.io/badge/tests-109%20passed-brightgreen" alt="Tests">
   </p>
 </p>
 
@@ -190,7 +191,7 @@ Claude Code Session
 | **Language** | TypeScript strict mode |
 | **Architecture** | Feature-Sliced Design (FSD) |
 | **Integration** | Claude Code Hooks |
-| **Test** | Vitest (107 tests) |
+| **Test** | Vitest (109 tests) |
 | **Platform** | macOS, Linux, Windows |
 
 ---
