@@ -4,7 +4,7 @@ import type {
   Suggestion,
 } from '../../../shared/types/session.js';
 import { pathBasename, pathTail } from '../../../shared/lib/format.js';
-import { ANALYSIS } from '../../../shared/lib/constants.js';
+import { ANALYSIS, getContextWindowSize } from '../../../shared/lib/constants.js';
 
 /** 세션 효율성 분석 */
 export function analyzeSession(session: ParsedSession): SessionAnalysis {
@@ -82,19 +82,22 @@ export function analyzeSession(session: ParsedSession): SessionAnalysis {
     });
   }
 
-  // 4. 컨텍스트 포화도 (단일 메시지 기준 최대 컨텍스트 크기 / 200K 윈도우)
+  // 4. 컨텍스트 포화도 (모델별 컨텍스트 윈도우 크기 기반)
   const peakContext = session.peakContextTokens;
+  const contextWindow = getContextWindowSize(session.model);
+  const contextWarning = Math.round(contextWindow * 0.75);
+  const contextCritical = Math.round(contextWindow * 0.9);
   const contextSaturation = Math.min(
     100,
-    Math.round((peakContext / ANALYSIS.CONTEXT_WINDOW_SIZE) * 100),
+    Math.round((peakContext / contextWindow) * 100),
   );
 
-  if (peakContext > ANALYSIS.CONTEXT_WARNING) {
-    const severity = peakContext > ANALYSIS.CONTEXT_CRITICAL ? 'critical' : 'warning';
+  if (peakContext > contextWarning) {
+    const severity = peakContext > contextCritical ? 'critical' : 'warning';
     suggestions.push({
       type: 'compact',
       severity,
-      message: `${label} 컨텍스트 ${Math.round(peakContext / 1000)}K/${Math.round(ANALYSIS.CONTEXT_WINDOW_SIZE / 1000)}K → 컴팩트 권장`,
+      message: `${label} 컨텍스트 ${Math.round(peakContext / 1000)}K/${Math.round(contextWindow / 1000)}K → 컴팩트 권장`,
       tokensSaveable: Math.round(peakContext * 0.3),
     });
   }

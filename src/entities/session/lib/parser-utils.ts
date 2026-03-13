@@ -18,9 +18,14 @@ const PRICING: Record<string, { input: number; output: number; cacheRead: number
 
 const DEFAULT_PRICING = PRICING['sonnet-4'];
 
+/** 모델에 해당하는 가격 정보 조회 */
+export function getPricing(model: string): { input: number; output: number; cacheRead: number; cacheWrite: number } {
+  return Object.entries(PRICING).find(([key]) => model.includes(key))?.[1] ?? DEFAULT_PRICING;
+}
+
 /** 비용 계산 */
 export function calculateCost(usage: TokenUsage, model: string): number {
-  const pricing = Object.entries(PRICING).find(([key]) => model.includes(key))?.[1] ?? DEFAULT_PRICING;
+  const pricing = getPricing(model);
 
   const inputCost = (usage.input_tokens / 1_000_000) * pricing.input;
   const outputCost = (usage.output_tokens / 1_000_000) * pricing.output;

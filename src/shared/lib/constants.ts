@@ -53,6 +53,21 @@ export const COMPOUND_MODEL = 'claude-sonnet-4-6';
 /** 컴파운드 프롬프트 최대 길이 (문자) */
 export const COMPOUND_PROMPT_MAX_LENGTH = 50_000;
 
+/** 모델별 컨텍스트 윈도우 크기 (토큰) */
+const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
+  'opus-4': 200_000,
+  'sonnet-4': 200_000,
+  'haiku-4': 200_000,
+  'sonnet-3-5': 200_000,
+  'haiku-3-5': 200_000,
+};
+
+/** 모델명에서 컨텍스트 윈도우 크기 조회 (매칭 실패 시 기본값 200K) */
+export function getContextWindowSize(model: string): number {
+  const entry = Object.entries(MODEL_CONTEXT_WINDOWS).find(([key]) => model.includes(key));
+  return entry ? entry[1] : ANALYSIS.CONTEXT_WINDOW_SIZE;
+}
+
 /** 기능 사용 카테고리 라벨 (Dashboard/Insights 공용) */
 export const FEATURE_LABELS: Record<string, string> = {
   agent: '🤖 Agent/팀',

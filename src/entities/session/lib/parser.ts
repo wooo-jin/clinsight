@@ -8,6 +8,7 @@ import type {
 } from '../../../shared/types/session.js';
 import {
   calculateCost,
+  getPricing,
   extractUserPrompt,
   extractToolUses,
   categorizeTools,
@@ -280,6 +281,7 @@ function loadSessionFromFile(sf: SessionFile): ParsedSession | null {
     totalCacheWriteTokens,
     model,
     estimatedCostUsd: Math.round(totalCost * 10000) / 10000,
+    costPricing: getPricing(model),
     peakContextTokens,
     userPrompts,
     featureUsage,

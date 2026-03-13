@@ -76,6 +76,8 @@ export interface ParsedSession {
   totalCacheWriteTokens: number;
   model: string;
   estimatedCostUsd: number;
+  /** 비용 계산에 사용된 가격 스냅샷 (USD per 1M tokens) */
+  costPricing?: { input: number; output: number; cacheRead: number; cacheWrite: number };
   /** 단일 메시지 기준 최대 컨텍스트 크기 (input + cache_read + cache_write) */
   peakContextTokens: number;
   // 사용자 프롬프트 원문

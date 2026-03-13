@@ -11,7 +11,7 @@
 import { initArchive, syncMessages, finalizeArchive } from './features/archive/lib/archive-writer.js';
 import { findJsonlPath, jsonlToMessages, extractJsonlMeta } from './features/archive/lib/jsonl-to-archive.js';
 import { loadSession } from './entities/session/lib/parser.js';
-import { ANALYSIS } from './shared/lib/constants.js';
+import { ANALYSIS, getContextWindowSize } from './shared/lib/constants.js';
 
 interface HookInput {
   session_id?: string;
@@ -108,12 +108,15 @@ function buildSessionAlerts(sessionId: string, jsonlPath?: string): string | nul
 
   const warnings: string[] = [];
 
-  // 1. 컨텍스트 포화도
-  if (session.peakContextTokens > ANALYSIS.CONTEXT_CRITICAL) {
-    const pct = Math.round((session.peakContextTokens / ANALYSIS.CONTEXT_WINDOW_SIZE) * 100);
-    warnings.push(`[Clinsight] 컨텍스트 ${pct}% 사용 중 (${Math.round(session.peakContextTokens / 1000)}K/${Math.round(ANALYSIS.CONTEXT_WINDOW_SIZE / 1000)}K). /compact 실행을 권장합니다.`);
-  } else if (session.peakContextTokens > ANALYSIS.CONTEXT_WARNING) {
-    const pct = Math.round((session.peakContextTokens / ANALYSIS.CONTEXT_WINDOW_SIZE) * 100);
+  // 1. 컨텍스트 포화도 (모델별 윈도우 크기 기반)
+  const contextWindow = getContextWindowSize(session.model);
+  const contextWarning = Math.round(contextWindow * 0.75);
+  const contextCritical = Math.round(contextWindow * 0.9);
+  if (session.peakContextTokens > contextCritical) {
+    const pct = Math.round((session.peakContextTokens / contextWindow) * 100);
+    warnings.push(`[Clinsight] 컨텍스트 ${pct}% 사용 중 (${Math.round(session.peakContextTokens / 1000)}K/${Math.round(contextWindow / 1000)}K). /compact 실행을 권장합니다.`);
+  } else if (session.peakContextTokens > contextWarning) {
+    const pct = Math.round((session.peakContextTokens / contextWindow) * 100);
     warnings.push(`[Clinsight] 컨텍스트 ${pct}% 사용 중. 곧 /compact가 필요할 수 있습니다.`);
   }
 

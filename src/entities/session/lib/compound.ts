@@ -200,7 +200,8 @@ function asClassification(val: unknown): CompoundClassification | undefined {
 
 // ── JSON 추출 ──
 
-function extractJson(text: string): Record<string, unknown> {
+/** @internal 테스트용 export */
+export function extractJson(text: string): Record<string, unknown> {
   const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const jsonStr = codeBlockMatch ? codeBlockMatch[1] : text;
 

@@ -71,7 +71,8 @@ export function appendToClaudeMd(
  * CLAUDE.md 내용에서 Compound Insights 섹션을 찾거나 만들고,
  * 해당 서브섹션에 항목을 추가
  */
-function insertIntoSection(content: string, subsectionHeader: string, bulletItem: string): string {
+/** @internal 테스트용 export */
+export function insertIntoSection(content: string, subsectionHeader: string, bulletItem: string): string {
   // 이미 동일한 내용이 있으면 중복 추가 방지
   if (content.includes(bulletItem)) {
     return content;
