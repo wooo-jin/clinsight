@@ -6,4 +6,9 @@ dist/
 .claude/.modified-files.json
 .claude/agents/
 .claude/skills/
+.claude/CLAUDE.md
+docs/critic-*.md
+PLANS.md
+CONTEXT.md
+CHECKLIST.md
 release/
