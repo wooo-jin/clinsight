@@ -35,7 +35,8 @@
   "scripts": {
     "dev": "tsx src/cli.tsx",
     "build": "tsup",
-    "prepublishOnly": "tsup",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "rm -rf dist && tsup",
     "setup": "tsx src/setup.ts",
     "setup:uninstall": "tsx src/setup.ts --uninstall",
     "cron": "tsx src/cron.ts",

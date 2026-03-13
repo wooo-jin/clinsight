@@ -1,0 +1,14 @@
+src/
+.claude/
+docs/
+assets/
+*.test.ts
+tsconfig.json
+tsup.config.ts
+eslint.config.js
+.gitignore
+CLAUDE.md
+PLANS.md
+CONTEXT.md
+CHECKLIST.md
+.modified-files.json

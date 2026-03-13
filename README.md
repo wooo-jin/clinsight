@@ -14,7 +14,7 @@
     <img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen" alt="Node">
     <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-blue" alt="Platform">
     <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
-    <img src="https://img.shields.io/badge/tests-83%20passed-brightgreen" alt="Tests">
+    <img src="https://img.shields.io/badge/tests-107%20passed-brightgreen" alt="Tests">
   </p>
 </p>
 
@@ -37,12 +37,26 @@ Claude Code를 쓰다 보면 이런 경험, 한 번쯤 있을 겁니다.
 
 <h2 id="quickstart">Quick Start</h2>
 
+### npm (권장)
+
+```bash
+npm install -g clinsight
+
+# Claude Code에 Hook 등록 (세션 자동 기록 시작)
+clinsight-setup
+
+# 대시보드 실행
+clinsight
+```
+
+### 소스에서 설치
+
 ```bash
 git clone https://github.com/wooo-jin/clinsight.git
 cd clinsight
 pnpm install && pnpm build
 
-# Claude Code에 Hook 등록 (세션 자동 기록 시작)
+# Claude Code에 Hook 등록
 pnpm setup
 
 # 대시보드 실행
@@ -63,7 +77,7 @@ Claude Code의 Hook 시스템에 연결되어 **모든 대화를 자동으로 �
 
 ### 2 &mdash; TUI 대시보드
 
-터미널에서 바로 확인하는 6개 탭 대시보드:
+터미널에서 바로 확인하는 7개 탭 대시보드:
 
 ```
 ╭─────────────────────────────────────────────────────────╮
@@ -93,6 +107,7 @@ Claude Code의 Hook 시스템에 연결되어 **모든 대화를 자동으로 �
 | **Cost** | 모델별/프로젝트별 비용 분석 |
 | **Compound** | AI 기반 패턴 추출 및 복리화 |
 | **Archive** | 저장된 세션 대화 전문 조회 |
+| **Settings** | 아카이브 보관 기간 설정 |
 
 ### 3 &mdash; 세션 분석 엔진
 
@@ -175,7 +190,7 @@ Claude Code Session
 | **Language** | TypeScript strict mode |
 | **Architecture** | Feature-Sliced Design (FSD) |
 | **Integration** | Claude Code Hooks |
-| **Test** | Vitest (83 tests) |
+| **Test** | Vitest (107 tests) |
 | **Platform** | macOS, Linux, Windows |
 
 ---
