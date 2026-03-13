@@ -31,7 +31,9 @@ const CRON_SCHEDULE = '0 23 * * *';
 
 function getCronCommand(): string {
   const cronScript = getCronScriptPath();
-  return `node "${cronScript}" >> ~/.claude/clinsight/cron.log 2>&1`;
+  // 크론 환경은 최소 PATH만 사용하므로 node 절대 경로 필요 (nvm/fnm 등)
+  const nodePath = process.execPath;
+  return `${nodePath} "${cronScript}" >> ~/.claude/clinsight/cron.log 2>&1`;
 }
 
 function getCurrentCrontab(): string {
@@ -103,8 +105,9 @@ function installWindows(): void {
       return;
     } catch { /* 태스크 없음 — 계속 진행 */ }
 
+    const nodePath = process.execPath;
     execSync(
-      `schtasks /Create /TN "${TASK_NAME}" /TR "node \\"${cronScript}\\"" /SC DAILY /ST 23:00 /F`,
+      `schtasks /Create /TN "${TASK_NAME}" /TR "\\"${nodePath}\\" \\"${cronScript}\\"" /SC DAILY /ST 23:00 /F`,
       { encoding: 'utf-8' },
     );
     console.log('✓ 예약 작업이 등록되었습니다.');
