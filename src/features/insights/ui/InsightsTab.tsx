@@ -136,7 +136,7 @@ export function InsightsTab({ sessions, analyses }: InsightsTabProps) {
           {ins.hourlyBuckets.map((bucket) => (
             <Box key={bucket.label}>
               <Text>{padEnd(bucket.label, 10)}</Text>
-              <Text color={bucket.count === ins.maxBucketCount ? 'cyan' : 'gray'}>
+              <Text color={bucket.count === ins.maxBucketCount ? 'cyan' : bucket.count >= ins.maxBucketCount * 0.5 ? 'blue' : 'gray'}>
                 {'█'.repeat(Math.min(20, Math.round((bucket.count / ins.maxBucketCount) * 20)))}
               </Text>
               <Text> {bucket.count}</Text>

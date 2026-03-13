@@ -20,13 +20,13 @@ import { SettingsTab } from '../features/settings/ui/SettingsTab.js';
 import { DEFAULT_SESSION_COUNT } from '../shared/lib/constants.js';
 
 const TABS = [
-  { key: '1', label: 'Dashboard', icon: '📊' },
-  { key: '2', label: 'Insights', icon: '💡' },
-  { key: '3', label: 'Sessions', icon: '📋' },
-  { key: '4', label: 'Cost', icon: '💰' },
-  { key: '5', label: 'Compound', icon: '📦' },
-  { key: '6', label: 'Archive', icon: '📂' },
-  { key: '7', label: 'Settings', icon: '⚙️' },
+  { key: '1', label: '홈', icon: '📊' },
+  { key: '2', label: '분석', icon: '💡' },
+  { key: '3', label: '세션', icon: '📋' },
+  { key: '4', label: '비용', icon: '💰' },
+  { key: '5', label: '복리', icon: '📦' },
+  { key: '6', label: '기록', icon: '📂' },
+  { key: '7', label: '설정', icon: '⚙️' },
 ] as const;
 
 const REFRESH_INTERVAL_MS = 60_000; // 1분마다 갱신
@@ -79,7 +79,7 @@ export function App() {
     return () => clearInterval(timer);
   }, [refreshData]);
 
-  useInput((input: string, key: { tab?: boolean }) => {
+  useInput((input: string, key: { tab?: boolean; shift?: boolean }) => {
     // s: 세션 데이터 파일로 내보내기
     if (input === 's') {
       const dir = join(homedir(), '.claude', 'clinsight', 'sessions');
@@ -109,6 +109,11 @@ export function App() {
     const tabIndex = parseInt(input) - 1;
     if (tabIndex >= 0 && tabIndex < TABS.length) {
       setActiveTab(tabIndex);
+      return;
+    }
+
+    if (key.shift && key.tab) {
+      setActiveTab((prev: number) => (prev - 1 + TABS.length) % TABS.length);
       return;
     }
 

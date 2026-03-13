@@ -4,7 +4,7 @@
  * 사용법: npx tsx src/cron.ts
  * 크론탭: 0 23 * * * cd /path/to/clinsight && npx tsx src/cron.ts
  */
-import { mkdirSync, existsSync, unlinkSync, readFileSync, writeFileSync, openSync, closeSync, constants as fsConstants } from 'fs';
+import { mkdirSync, existsSync, unlinkSync, readFileSync, writeFileSync, openSync, closeSync, constants as fsConstants, statSync, renameSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { loadRecentSessions } from './entities/session/lib/parser.js';
@@ -33,27 +33,49 @@ function today(): string {
   return `${year}-${month}-${day}`;
 }
 
+const CRON_LOG_FILE = join(DATA_DIR, 'cron.log');
+const CRON_LOG_MAX_SIZE = 1 * 1024 * 1024; // 1MB
+
 function log(msg: string) {
   const ts = new Date().toISOString();
   console.log(`[${ts}] ${msg}`);
 }
 
-/** 중복 실행 방지용 lock (O_EXCL로 원자적 생성) */
-function acquireLock(): boolean {
-  // stale lock 처리
-  if (existsSync(LOCK_FILE)) {
-    try {
-      const lockTime = parseInt(readFileSync(LOCK_FILE, 'utf-8'), 10);
-      if (Date.now() - lockTime < 10 * 60 * 1000) {
-        return false;
-      }
-      unlinkSync(LOCK_FILE);
-    } catch {
-      // lock 파일 읽기 실패 → stale로 간주하고 제거 시도
-      try { unlinkSync(LOCK_FILE); } catch { /* 무시 */ }
+/** 크론 로그 로테이션 (1MB 초과 시 .old로 rename) */
+function rotateCronLog(): void {
+  try {
+    if (!existsSync(CRON_LOG_FILE)) return;
+    const size = statSync(CRON_LOG_FILE).size;
+    if (size > CRON_LOG_MAX_SIZE) {
+      renameSync(CRON_LOG_FILE, CRON_LOG_FILE + '.old');
     }
+  } catch (err) { console.error('[clinsight] cron log rotation:', err); }
+}
+
+/** 중복 실행 방지용 lock (O_EXCL 원자적 생성, race condition 방지) */
+function acquireLock(): boolean {
+  // 1차: O_EXCL로 원자적 생성 시도
+  try {
+    const fd = openSync(LOCK_FILE, fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL);
+    writeFileSync(fd, String(Date.now()));
+    closeSync(fd);
+    return true;
+  } catch {
+    // 파일이 이미 존재 → stale 여부 확인
   }
-  // O_EXCL: 파일이 이미 존재하면 실패 → race condition 방지
+
+  // stale lock 처리 (10분 초과 시 제거 후 재시도)
+  try {
+    const lockTime = parseInt(readFileSync(LOCK_FILE, 'utf-8'), 10);
+    if (Date.now() - lockTime < 10 * 60 * 1000) {
+      return false; // 아직 유효한 lock
+    }
+  } catch {
+    // 읽기 실패 → stale로 간주
+  }
+
+  // stale lock 제거 후 O_EXCL 재시도 (race condition 방지)
+  try { unlinkSync(LOCK_FILE); } catch { /* 이미 제거됨 */ }
   try {
     const fd = openSync(LOCK_FILE, fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL);
     writeFileSync(fd, String(Date.now()));
@@ -67,13 +89,14 @@ function acquireLock(): boolean {
 function releaseLock() {
   try {
     unlinkSync(LOCK_FILE);
-  } catch {
-    // 무시
+  } catch (err) {
+    console.error('[clinsight] releaseLock:', err);
   }
 }
 
 async function main() {
   ensureDirs();
+  rotateCronLog();
 
   if (!acquireLock()) {
     log('다른 크론잡이 실행 중입니다. 종료합니다.');
@@ -84,12 +107,12 @@ async function main() {
     const dateStr = today();
     log('=== Claude Compound HUD 야간 크론잡 시작 ===');
 
-    // 1. 오늘 세션 로드
+    // 1. 오늘 세션 로드 (날짜 필터 먼저 적용하여 불필요한 파싱 최소화)
     log('세션 데이터 로드 중...');
-    const sessions = loadRecentSessions(100);
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
+    const sessions = loadRecentSessions(300);
     const todaySessions = sessions.filter((s) => s.startTime >= todayStart);
     log(`오늘 세션: ${todaySessions.length}개 / 전체: ${sessions.length}개`);
 

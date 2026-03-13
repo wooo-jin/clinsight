@@ -20,6 +20,8 @@ export const ANALYSIS = {
   UNUSED_READ_WARNING: 10,
   /** 세션 길이 경고 (분) */
   SESSION_DURATION_WARNING: 60,
+  /** 세션 길이 심각 임계치 (분) */
+  SESSION_DURATION_CRITICAL: 90,
   /** 세션 비용 경고 임계치 (USD) */
   SESSION_COST_WARNING: 10,
   /** 세션 비용 심각 임계치 (USD) */
@@ -38,6 +40,9 @@ export const ANALYSIS = {
   TOKEN_TO_USD_FACTOR: 0.000015,
 } as const;
 
+/** JSONL 파일 최대 읽기 크기 (50MB) — OOM 방지 */
+export const MAX_JSONL_SIZE = 50 * 1024 * 1024;
+
 /** 최근 로드할 세션 수 기본값 */
 export const DEFAULT_SESSION_COUNT = 50;
 
@@ -53,13 +58,13 @@ export const COMPOUND_MODEL = 'claude-sonnet-4-6';
 /** 컴파운드 프롬프트 최대 길이 (문자) */
 export const COMPOUND_PROMPT_MAX_LENGTH = 50_000;
 
-/** 모델별 컨텍스트 윈도우 크기 (토큰) */
+/** 모델별 컨텍스트 윈도우 크기 (토큰) — 구체적인 키가 먼저 (includes 매칭 시 우선) */
 const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
+  'sonnet-3-5': 200_000,
+  'haiku-3-5': 200_000,
   'opus-4': 200_000,
   'sonnet-4': 200_000,
   'haiku-4': 200_000,
-  'sonnet-3-5': 200_000,
-  'haiku-3-5': 200_000,
 };
 
 /** 모델명에서 컨텍스트 윈도우 크기 조회 (매칭 실패 시 기본값 200K) */

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { spawn } from 'child_process';
 import { Panel } from '../../../shared/ui/index.js';
@@ -25,6 +25,12 @@ export function SessionsTab({ sessions, analyses }: SessionsTabProps) {
   const [statusMsg, setStatusMsg] = useState('');
   const [page, setPage] = useState(0);
   const totalPages = Math.ceil(sessions.length / SESSION_LIST_LIMIT);
+
+  // sessions prop 변경 시 선택 인덱스 리셋
+  useEffect(() => {
+    setSelectedIdx(0);
+    setPage(0);
+  }, [sessions]);
 
   const activeSet = useMemo(() => {
     const set = new Set<string>();
@@ -103,15 +109,18 @@ export function SessionsTab({ sessions, analyses }: SessionsTabProps) {
       const session = currentSessions[selectedIdx];
       const sid = session.sessionId;
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-/.test(sid)) return;
-      const safePath = session.project.replace(/'/g, "'\\''");
+      // AppleScript: 백슬래시를 먼저 이스케이프, 그 다음 쌍따옴표 이스케이프
+      const appleEscape = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      // Shell: 작은따옴표 이스케이프
+      const shellEscape = (s: string) => s.replace(/'/g, "'\\''");
       if (process.platform === 'darwin') {
-        const script = `cd '${safePath}' && claude --resume ${sid}`;
+        const script = `cd '${shellEscape(session.project)}' && claude --resume ${sid}`;
         spawn('osascript', [
-          '-e', `tell application "Terminal" to do script "${script.replace(/"/g, '\\"')}"`,
+          '-e', `tell application "Terminal" to do script "${appleEscape(script)}"`,
           '-e', 'tell application "Terminal" to activate',
         ], { detached: true, stdio: 'ignore' }).unref();
       } else {
-        const script = `cd '${safePath}' && claude --resume ${sid}`;
+        const script = `cd '${shellEscape(session.project)}' && claude --resume ${sid}`;
         spawn('sh', ['-c', `x-terminal-emulator -e "sh -c '${script}'" 2>/dev/null || gnome-terminal -- sh -c '${script}' 2>/dev/null`],
           { detached: true, stdio: 'ignore' }).unref();
       }
@@ -159,13 +168,13 @@ export function SessionsTab({ sessions, analyses }: SessionsTabProps) {
 
             {/* 헤더 */}
             <Box>
-              <Text bold>{padEnd('', 3)}</Text>
-              <Text bold>{padEnd('#', 4)}</Text>
-              <Text bold>{padEnd('시각', 8)}</Text>
-              <Text bold>{padEnd('프로젝트', 24)}</Text>
-              <Text bold>{padEnd('시간', 6)}</Text>
-              <Text bold>{padEnd('도구', 6)}</Text>
-              <Text bold>{padEnd('효율', 6)}</Text>
+              <Text bold wrap="truncate">{padEnd('', 3)}</Text>
+              <Text bold wrap="truncate">{padEnd('#', 4)}</Text>
+              <Text bold wrap="truncate">{padEnd('시각', 8)}</Text>
+              <Text bold wrap="truncate">{padEnd('프로젝트', 24)}</Text>
+              <Text bold wrap="truncate">{padEnd('시간', 6)}</Text>
+              <Text bold wrap="truncate">{padEnd('도구', 6)}</Text>
+              <Text bold wrap="truncate">{padEnd('효율', 6)}</Text>
             </Box>
 
             {/* 세션 목록 */}
@@ -184,6 +193,7 @@ export function SessionsTab({ sessions, analyses }: SessionsTabProps) {
                     color={isSelected ? 'cyan' : undefined}
                     bold={isSelected}
                     inverse={isSelected}
+                    wrap="truncate"
                   >
                     {padEnd(isSelected ? '▸' + String(i + 1) : ' ' + String(i + 1), 4)}
                     {padEnd(format(session.startTime, 'HH:mm'), 8)}
@@ -211,7 +221,7 @@ export function SessionsTab({ sessions, analyses }: SessionsTabProps) {
                   : <Text dimColor>○ 종료</Text>
                 }
               </Box>
-              <Text>프로젝트: {selected.project}</Text>
+              <Text wrap="truncate">프로젝트: {selected.project}</Text>
               <Text>
                 시간: {format(selected.startTime, 'HH:mm')} ~{' '}
                 {format(selected.endTime, 'HH:mm')} ({selected.durationMinutes}분)
@@ -268,7 +278,7 @@ export function SessionsTab({ sessions, analyses }: SessionsTabProps) {
       <Text dimColor>
         {viewMode === 'list'
           ? '[j/k] 이동  [Enter] 상세  [o] 세션 열기  [z] 좀비 스캔'
-          : ''}
+          : '[x] 좀비 정리  [q/Esc] 돌아가기'}
       </Text>
     </Box>
   );

@@ -118,7 +118,7 @@ export function installHooks(): { installed: string[]; skipped: string[]; error?
     const existing = settings.hooks[settingsKey].find(isClinsightHook);
     if (existing) {
       // 이미 있으면 경로만 업데이트
-      existing.hooks[0].command = buildHookCommand(eventArg);
+      if (existing.hooks[0]) existing.hooks[0].command = buildHookCommand(eventArg);
       skipped.push(settingsKey);
     } else {
       settings.hooks[settingsKey].push(makeHookEntry(eventArg));

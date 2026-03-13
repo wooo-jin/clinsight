@@ -15,7 +15,7 @@ import {
   analyzeInteractionPattern,
   countReverts,
 } from './parser-utils.js';
-import { CLAUDE_DIR, PROJECTS_DIR } from '../../../shared/lib/constants.js';
+import { CLAUDE_DIR, PROJECTS_DIR, MAX_JSONL_SIZE } from '../../../shared/lib/constants.js';
 
 export function getClaudeDir(): string {
   return CLAUDE_DIR;
@@ -38,16 +38,22 @@ function extractCwdFromJsonl(filePath: string): string | null {
         if (obj.type === 'user' && obj.cwd) return obj.cwd;
       } catch { continue; }
     }
-  } catch { /* ignore */ }
+  } catch (err) { console.error('[clinsight] extractCwdFromJsonl:', err); }
   return null;
 }
 
-/** dirName → project 경로 캐시 (JSONL cwd 기반) */
+/** dirName → project 경로 캐시 (JSONL cwd 기반, 최대 100개) */
+const DIR_NAME_CACHE_MAX = 100;
 const dirNameCache = new Map<string, string>();
 
 function dirNameToProjectPath(dirName: string, jsonlPaths: string[]): string {
   const cached = dirNameCache.get(dirName);
   if (cached) return cached;
+
+  // 캐시 크기 제한
+  if (dirNameCache.size >= DIR_NAME_CACHE_MAX) {
+    dirNameCache.clear();
+  }
 
   // 여러 JSONL에서 cwd 추출 시도 (첫 파일에 cwd가 없을 수 있음)
   for (const p of jsonlPaths) {
@@ -81,7 +87,8 @@ function listAllSessionFiles(): SessionFile[] {
     const dirPath = join(PROJECTS_DIR, dirName);
     try {
       if (!statSync(dirPath).isDirectory()) continue;
-    } catch {
+    } catch (err) {
+      console.error('[clinsight] stat project dir:', err);
       continue;
     }
 
@@ -99,11 +106,13 @@ function listAllSessionFiles(): SessionFile[] {
         try {
           const stat = statSync(filePath);
           result.push({ sessionId, project, filePath, mtime: stat.mtime });
-        } catch {
+        } catch (err) {
+          console.error('[clinsight] stat session file:', err);
           continue;
         }
       }
-    } catch {
+    } catch (err) {
+      console.error('[clinsight] readdir project:', err);
       continue;
     }
   }
@@ -111,14 +120,16 @@ function listAllSessionFiles(): SessionFile[] {
   return result;
 }
 
-/** JSONL 파일 최대 읽기 크기 (50MB) — OOM 방지 */
-const MAX_JSONL_SIZE = 50 * 1024 * 1024;
-
 /** 파일 앞부분만 안전하게 읽기 (OOM 방지: 대용량 파일에서 전체 로드 없이 제한 크기만 읽음) */
-function readFileSafe(filePath: string, maxSize: number): string {
-  const fileSize = statSync(filePath).size;
+function readFileSafe(filePath: string, maxSize: number): { content: string; truncated: boolean } {
+  let fileSize: number;
+  try {
+    fileSize = statSync(filePath).size;
+  } catch {
+    return { content: '', truncated: false };
+  }
   if (fileSize <= maxSize) {
-    return readFileSync(filePath, 'utf-8');
+    return { content: readFileSync(filePath, 'utf-8'), truncated: false };
   }
   // 대용량 파일: fd 기반으로 앞부분만 읽기 (readFileSync().slice()는 전체를 메모리에 올림)
   const buf = Buffer.alloc(maxSize);
@@ -128,14 +139,18 @@ function readFileSafe(filePath: string, maxSize: number): string {
   } finally {
     closeSync(fd);
   }
-  return buf.toString('utf-8');
+  // 절단 시 마지막 완전한 줄(\n)까지만 사용 — 불완전한 JSON 라인 방지
+  const raw = buf.toString('utf-8');
+  const lastNewline = raw.lastIndexOf('\n');
+  const content = lastNewline > 0 ? raw.slice(0, lastNewline) : raw;
+  return { content, truncated: true };
 }
 
 /** JSONL 파싱 */
-function parseJsonl(filePath: string): ProjectMessage[] {
-  if (!existsSync(filePath)) return [];
+function parseJsonl(filePath: string): { messages: ProjectMessage[]; truncated: boolean } {
+  if (!existsSync(filePath)) return { messages: [], truncated: false };
 
-  const rawContent = readFileSafe(filePath, MAX_JSONL_SIZE);
+  const { content: rawContent, truncated } = readFileSafe(filePath, MAX_JSONL_SIZE);
   const lines = rawContent.split('\n').filter(Boolean);
   const messages: ProjectMessage[] = [];
 
@@ -150,11 +165,11 @@ function parseJsonl(filePath: string): ProjectMessage[] {
     }
   }
 
-  return messages;
+  return { messages, truncated };
 }
 /** 세션 파일에서 ParsedSession 생성 */
 function loadSessionFromFile(sf: SessionFile): ParsedSession | null {
-  const messages = parseJsonl(sf.filePath);
+  const { messages, truncated } = parseJsonl(sf.filePath);
   const userMsgs = messages.filter((m): m is ProjectUserMessage => m.type === 'user');
   const assistantMsgs = messages.filter((m): m is ProjectAssistantMessage => m.type === 'assistant');
 
@@ -289,6 +304,7 @@ function loadSessionFromFile(sf: SessionFile): ParsedSession | null {
     interactionPattern,
     agentTypes,
     editOps: editOps.slice(0, 20), // compound 프롬프트용 샘플 (revertCount는 전체 editOps로 계산 완료)
+    truncated,
   };
 }
 
@@ -337,7 +353,7 @@ export function loadSession(sessionId: string, knownJsonlPath?: string): ParsedS
       const sf: SessionFile = { sessionId, project, filePath, mtime: stat.mtime };
       return loadSessionFromFile(sf);
     }
-  } catch { /* ignore */ }
+  } catch (err) { console.error('[clinsight] loadSession scan:', err); }
 
   return null;
 }

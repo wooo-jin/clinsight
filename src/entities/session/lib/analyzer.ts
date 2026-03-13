@@ -18,9 +18,11 @@ export function analyzeSession(session: ParsedSession): SessionAnalysis {
   // 1. 삽질 지수: 되돌림(revert) 기반
   //    같은 파일을 여러 번 편집하는 것은 점진적 개발일 수 있으므로 삽질이 아님
   //    되돌림(이전 변경을 취소하는 편집)만이 진짜 삽질
-  const totalEdits = session.filesEdited.length;
-  const churnIndex = totalEdits > 0
-    ? Math.min(1, session.revertCount / totalEdits)
+  //    분모: 성공 편집(unique files) + 되돌림 횟수 = 전체 편집 노력
+  const successEdits = session.filesEdited.length;
+  const totalEffort = successEdits + session.revertCount;
+  const churnIndex = totalEffort > 0
+    ? session.revertCount / totalEffort
     : 0;
 
   // 반복 편집 경고 (높은 임계치에서만 — 과도한 반복은 여전히 비효율 신호)
@@ -102,14 +104,14 @@ export function analyzeSession(session: ParsedSession): SessionAnalysis {
     });
   }
 
-  // 5. 1회 해결률: 되돌림 없이 완료된 편집 비율
-  const firstTryRate = totalEdits > 0
-    ? Math.round(Math.max(0, (totalEdits - session.revertCount) / totalEdits) * 100)
+  // 5. 1회 해결률: 전체 편집 노력 중 되돌림 없이 완료된 비율
+  const firstTryRate = totalEffort > 0
+    ? Math.round((successEdits / totalEffort) * 100)
     : 100;
 
   // 6. 되돌림 비율
-  const revertRate = totalEdits > 0
-    ? Math.round((session.revertCount / totalEdits) * 100)
+  const revertRate = totalEffort > 0
+    ? Math.round((session.revertCount / totalEffort) * 100)
     : 0;
 
   // 7. 비용 경고

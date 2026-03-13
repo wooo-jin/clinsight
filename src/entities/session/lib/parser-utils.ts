@@ -8,12 +8,13 @@ import type {
 
 // 모델별 토큰 단가 (USD per 1M tokens)
 // https://docs.anthropic.com/en/docs/about-claude/models#model-comparison-table
+// 구체적인 키가 먼저 (includes 매칭 시 'sonnet-3-5'가 'sonnet-4'보다 우선)
 const PRICING: Record<string, { input: number; output: number; cacheRead: number; cacheWrite: number }> = {
+  'sonnet-3-5': { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+  'haiku-3-5': { input: 0.25, output: 1.25, cacheRead: 0.03, cacheWrite: 0.3 },
   'opus-4': { input: 15, output: 75, cacheRead: 1.5, cacheWrite: 18.75 },
   'sonnet-4': { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
   'haiku-4': { input: 0.8, output: 4, cacheRead: 0.08, cacheWrite: 1 },
-  'sonnet-3-5': { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
-  'haiku-3-5': { input: 0.25, output: 1.25, cacheRead: 0.03, cacheWrite: 0.3 },
 };
 
 const DEFAULT_PRICING = PRICING['sonnet-4'];
@@ -27,8 +28,8 @@ export function getPricing(model: string): { input: number; output: number; cach
 export function calculateCost(usage: TokenUsage, model: string): number {
   const pricing = getPricing(model);
 
-  const inputCost = (usage.input_tokens / 1_000_000) * pricing.input;
-  const outputCost = (usage.output_tokens / 1_000_000) * pricing.output;
+  const inputCost = ((usage.input_tokens ?? 0) / 1_000_000) * pricing.input;
+  const outputCost = ((usage.output_tokens ?? 0) / 1_000_000) * pricing.output;
   const cacheReadCost = ((usage.cache_read_input_tokens ?? 0) / 1_000_000) * pricing.cacheRead;
   const cacheWriteCost = ((usage.cache_creation_input_tokens ?? 0) / 1_000_000) * pricing.cacheWrite;
 

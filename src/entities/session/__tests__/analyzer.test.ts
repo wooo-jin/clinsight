@@ -60,9 +60,10 @@ describe('analyzeSession', () => {
     });
     const result = analyzeSession(session);
 
-    expect(result.churnIndex).toBe(1); // 2/2 = 100%
-    expect(result.firstTryRate).toBe(0); // 모든 편집이 되돌림
-    expect(result.revertRate).toBe(100);
+    // totalEffort = 2(files) + 2(reverts) = 4, churnIndex = 2/4 = 0.5
+    expect(result.churnIndex).toBe(0.5);
+    expect(result.firstTryRate).toBe(50); // 2/4 = 50%
+    expect(result.revertRate).toBe(50);
   });
 
   it('반복 편집만으로는 삽질이 아니다 (되돌림 없음)', () => {

@@ -97,6 +97,8 @@ export interface ParsedSession {
   agentTypes: Record<string, number>;
   /** 편집 작업 목록 (compound 분석용, 최대 20개) */
   editOps: { file: string; oldStr: string; newStr: string }[];
+  /** JSONL이 50MB 제한으로 절단되었는지 여부 */
+  truncated?: boolean;
 }
 
 /** Claude Code 고수준 기능 사용 현황 */

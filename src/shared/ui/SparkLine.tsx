@@ -22,16 +22,33 @@ interface SparkLineProps {
   formatValue?: (v: number) => string;
   /** 커스텀 라벨 배열 */
   labels?: string[];
+  /** 최대 표시 항목 수 (data가 이보다 길면 뒤에서 maxItems개만 표시) */
+  maxItems?: number;
 }
 
 export function SparkLine({
-  data,
+  data: rawData,
   color = 'cyan',
   suffix = '',
   formatValue,
-  labels,
+  labels: rawLabels,
+  maxItems,
 }: SparkLineProps) {
-  if (data.length === 0) return <Text dimColor>데이터 없음</Text>;
+  if (rawData.length === 0) return <Text dimColor>데이터 없음</Text>;
+
+  // maxItems 적용: 뒤에서 maxItems개만 표시
+  const data = maxItems && rawData.length > maxItems ? rawData.slice(-maxItems) : rawData;
+
+  // labels 길이를 data에 맞춤
+  let labels = rawLabels;
+  if (labels) {
+    if (labels.length > data.length) {
+      labels = labels.slice(-data.length);
+    } else if (labels.length < data.length) {
+      const pad = Array.from({ length: data.length - labels.length }, () => '');
+      labels = [...pad, ...labels];
+    }
+  }
 
   let max = data[0];
   let min = data[0];

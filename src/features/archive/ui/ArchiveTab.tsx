@@ -49,9 +49,12 @@ function truncate(str: string, maxLen: number): string {
 
 // App 오버헤드: 헤더(1)+margin(1)+탭바(1)+margin(1)+footer margin(1)+footer(1)=6
 // ArchiveTab 목록 오버헤드: 저장위치(1)+Panel상하(2)+제목(1)+날짜(~2)+푸터힌트(1)=7
-const PAGE_SIZE = 5;
+const ARCHIVE_OVERHEAD = 7; // 저장위치(1)+Panel상하(2)+제목(1)+날짜(~2)+푸터(1)
+const MIN_pageSize = 3;
 
-export function ArchiveTab({ maxHeight: _mh = 20 }: { maxHeight?: number }) {
+export function ArchiveTab({ maxHeight = 20 }: { maxHeight?: number }) {
+  // maxHeight에서 오버헤드를 빼고, 각 항목은 2줄(본문+요약)+날짜 헤더 고려
+  const pageSize = Math.max(MIN_pageSize, Math.floor((maxHeight - ARCHIVE_OVERHEAD) / 3));
   const [data, setData] = useState(() => loadArchiveSessions());
   const [sessionCursor, setSessionCursor] = useState(0);
   const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
@@ -71,10 +74,10 @@ export function ArchiveTab({ maxHeight: _mh = 20 }: { maxHeight?: number }) {
   const safeCursor = Math.min(sessionCursor, Math.max(0, totalCount - 1));
   const selected = allSessions[safeCursor];
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const currentPage = Math.floor(safeCursor / PAGE_SIZE);
-  const pageStart = currentPage * PAGE_SIZE;
-  const pageEnd = Math.min(pageStart + PAGE_SIZE, totalCount);
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const currentPage = Math.floor(safeCursor / pageSize);
+  const pageStart = currentPage * pageSize;
+  const pageEnd = Math.min(pageStart + pageSize, totalCount);
 
   useInput((input, key) => {
     if (viewMode === 'detail') {
@@ -83,10 +86,10 @@ export function ArchiveTab({ maxHeight: _mh = 20 }: { maxHeight?: number }) {
         setDetailMsgPage(0);
         return;
       }
-      if (key.leftArrow || input === 'h') {
+      if (key.leftArrow || input === 'h' || input === 'k') {
         setDetailMsgPage((p) => Math.max(0, p - 1));
       }
-      if (key.rightArrow || input === 'l') {
+      if (key.rightArrow || input === 'l' || input === 'j') {
         if (selected) {
           const mp = Math.max(0, Math.ceil(selected.session.messages.length / 8) - 1);
           setDetailMsgPage((p) => Math.min(mp, p + 1));
@@ -141,7 +144,7 @@ export function ArchiveTab({ maxHeight: _mh = 20 }: { maxHeight?: number }) {
             </Text>
           ))}
         </Panel>
-        <Text dimColor>[h/l] 페이지  [Esc/q] 목록</Text>
+        <Text dimColor>[j/k h/l] 페이지  [Esc/q] 목록</Text>
       </Box>
     );
   }

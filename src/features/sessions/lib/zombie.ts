@@ -43,7 +43,8 @@ function getActivePidsUnix(): Set<number> {
       if (!isNaN(pid)) pids.add(pid);
     }
     return pids;
-  } catch {
+  } catch (err) {
+    console.error('[clinsight] getActivePidsUnix:', err);
     return new Set();
   }
 }
@@ -60,7 +61,8 @@ function getActivePidsWindows(): Set<number> {
       if (match) pids.add(parseInt(match[1], 10));
     }
     return pids;
-  } catch {
+  } catch (err) {
+    console.error('[clinsight] getActivePidsWindows:', err);
     return new Set();
   }
 }
@@ -99,7 +101,8 @@ function getAllClaudeProcessesUnix(): ZombieProcess[] {
       });
     }
     return processes;
-  } catch {
+  } catch (err) {
+    console.error('[clinsight] getAllClaudeProcessesUnix:', err);
     return [];
   }
 }
@@ -128,7 +131,8 @@ function getAllClaudeProcessesWindows(): ZombieProcess[] {
       });
     }
     return processes;
-  } catch {
+  } catch (err) {
+    console.error('[clinsight] getAllClaudeProcessesWindows:', err);
     return [];
   }
 }
@@ -164,9 +168,28 @@ function findOrphanDirs(): OrphanDir[] {
         });
       }
     }
-  } catch { /* ignore */ }
+  } catch (err) { console.error('[clinsight] findOrphanDirs:', err); }
 
   return orphans;
+}
+
+/** ps etime 문자열(예: "1-02:03:04", "02:03:04", "03:04")을 시간 단위로 변환 */
+function parseElapsedToHours(elapsed: string): number {
+  try {
+    const dayMatch = elapsed.match(/^(\d+)-(.+)$/);
+    let days = 0;
+    let rest = elapsed;
+    if (dayMatch) {
+      days = parseInt(dayMatch[1], 10);
+      rest = dayMatch[2];
+    }
+    const parts = rest.split(':').map((s) => parseInt(s, 10));
+    if (parts.length === 3) return days * 24 + parts[0] + parts[1] / 60;
+    if (parts.length === 2) return days * 24 + parts[0] / 60;
+    return days * 24;
+  } catch {
+    return 0;
+  }
 }
 
 /** 좀비 상태 스캔 */
@@ -180,9 +203,15 @@ export function scanZombies(): ZombieInfo {
     if (IS_WINDOWS) return true;
     // TTY 없는 프로세스 → 좀비
     if (p.tty === '??' || p.tty === '?') return true;
-    // TTY 있지만 foreground 세션에 없는 프로세스 → 좀비 후보
-    // (터미널이 닫혔지만 프로세스가 살아있는 경우)
-    return true;
+    // TTY 있지만 foreground가 아닌 프로세스 → 경과시간/상태 확인 후 판단
+    // elapsed가 24시간 이상이거나 stat에 Z(zombie)/T(stopped)가 포함된 경우만 좀비로 분류
+    const elapsedHours = parseElapsedToHours(p.elapsed);
+    if (elapsedHours >= 24) return true;
+    try {
+      const statOut = execSync(`ps -o stat= -p ${p.pid} 2>/dev/null`, { encoding: 'utf-8', timeout: 3000 }).trim();
+      if (/[ZT]/.test(statOut)) return true;
+    } catch { /* 프로세스 조회 실패 시 정상으로 간주 */ }
+    return false;
   });
 
   const orphanDirs = findOrphanDirs();

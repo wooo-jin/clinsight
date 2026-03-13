@@ -4,7 +4,6 @@
  */
 import { readFileSync, existsSync, readdirSync, statSync, openSync, readSync, closeSync } from 'fs';
 import { join } from 'path';
-import { homedir } from 'os';
 import type {
   ProjectMessage,
   ProjectUserMessage,
@@ -12,15 +11,16 @@ import type {
   ContentBlock,
 } from '../../../shared/types/session.js';
 import type { ArchivedMessage, ToolResult } from './archive-writer.js';
-
-const PROJECTS_DIR = join(homedir(), '.claude', 'projects');
-
-/** JSONL 파일 최대 읽기 크기 (50MB) — OOM 방지 */
-const MAX_JSONL_SIZE = 50 * 1024 * 1024;
+import { PROJECTS_DIR, MAX_JSONL_SIZE } from '../../../shared/lib/constants.js';
 
 /** 크기 제한 적용된 JSONL 읽기 (OOM 방지: 대용량 파일에서 전체 로드 없이 제한 크기만 읽음) */
 function readJsonlSafe(filePath: string): string {
-  const fileSize = statSync(filePath).size;
+  let fileSize: number;
+  try {
+    fileSize = statSync(filePath).size;
+  } catch {
+    return '';
+  }
   if (fileSize <= MAX_JSONL_SIZE) {
     return readFileSync(filePath, 'utf-8');
   }
@@ -31,7 +31,10 @@ function readJsonlSafe(filePath: string): string {
   } finally {
     closeSync(fd);
   }
-  return buf.toString('utf-8');
+  // 절단 시 마지막 완전한 줄까지만 사용
+  const raw = buf.toString('utf-8');
+  const lastNewline = raw.lastIndexOf('\n');
+  return lastNewline > 0 ? raw.slice(0, lastNewline) : raw;
 }
 
 /** JSONL 파일에서 메시지 파싱 */

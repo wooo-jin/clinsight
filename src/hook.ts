@@ -8,10 +8,15 @@
  *   prompt-submit   → 사용자 프롬프트 기록
  *   session-stop    → JSONL 파싱 후 완전한 아카이브 생성
  */
+import { mkdirSync, appendFileSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
 import { initArchive, syncMessages, finalizeArchive } from './features/archive/lib/archive-writer.js';
 import { findJsonlPath, jsonlToMessages, extractJsonlMeta } from './features/archive/lib/jsonl-to-archive.js';
 import { loadSession } from './entities/session/lib/parser.js';
 import { ANALYSIS, getContextWindowSize } from './shared/lib/constants.js';
+
+const HOOK_ERROR_LOG = join(homedir(), '.claude', 'clinsight', 'hook-errors.log');
 
 interface HookInput {
   session_id?: string;
@@ -74,8 +79,15 @@ async function main() {
         handleSessionStop(sessionId);
         break;
     }
-  } catch {
+  } catch (err) {
     // 훅은 실패해도 Claude Code에 영향 주지 않도록 조용히 종료
+    // 에러 로그 기록
+    try {
+      mkdirSync(join(homedir(), '.claude', 'clinsight'), { recursive: true });
+      const ts = new Date().toISOString();
+      const msg = err instanceof Error ? err.message : String(err);
+      appendFileSync(HOOK_ERROR_LOG, `[${ts}] event=${event} session=${sessionId} error=${msg}\n`);
+    } catch { /* 로깅 실패도 무시 */ }
   }
 }
 
@@ -97,7 +109,11 @@ function handlePromptSubmit(sessionId: string, _input: HookInput): void {
   // jsonlPath를 전달하여 디렉토리 재스캔 방지
   const alerts = buildSessionAlerts(sessionId, jsonlPath);
   if (alerts) {
-    process.stdout.write(JSON.stringify({ additionalContext: alerts }));
+    // 제어 문자, ANSI 시퀀스 제거 (JSON 출력 안전성 보장)
+    const sanitized = alerts
+      .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')  // ANSI escape sequences
+      .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '');  // control chars (keep \n \r \t)
+    process.stdout.write(JSON.stringify({ additionalContext: sanitized }));
   }
 }
 
@@ -135,7 +151,8 @@ function buildSessionAlerts(sessionId: string, jsonlPath?: string): string | nul
   }
 
   // 4. 세션 길이 경고
-  if (session.durationMinutes > 90) {
+  const durationCritical = (ANALYSIS as Record<string, number>).SESSION_DURATION_CRITICAL ?? 90;
+  if (session.durationMinutes > durationCritical) {
     warnings.push(`[Clinsight] 세션 ${session.durationMinutes}분 진행 중. 새 세션으로 분리하는 것을 권장합니다.`);
   } else if (session.durationMinutes > ANALYSIS.SESSION_DURATION_WARNING) {
     warnings.push(`[Clinsight] 세션 ${session.durationMinutes}분 진행 중. 40-50분 단위 세션이 효율적입니다.`);

@@ -3,6 +3,7 @@ import { Box, Text } from 'ink';
 import { Panel, SparkLine } from '../../../shared/ui/index.js';
 import { formatTokens } from '../../../shared/lib/format.js';
 import { FEATURE_LABELS } from '../../../shared/lib/constants.js';
+import { severityRank, severityColor, severityIcon } from '../../../shared/lib/severity.js';
 import type { ParsedSession, SessionAnalysis, Suggestion } from '../../../shared/types/session.js';
 
 interface DashboardTabProps {
@@ -37,8 +38,8 @@ export function DashboardTab({ sessions, analyses }: DashboardTabProps) {
         </Panel>
       </Box>
 
-      {/* 추이 그래프 */}
-      <Box gap={1}>
+      {/* 추이 그래프 — 세로 배치 */}
+      <Box flexDirection="column" gap={1}>
         <Panel title="🔥 7일 비용 추이">
           <SparkLine
             data={stats.dailyCosts}
@@ -266,14 +267,3 @@ function HourlyHeatmap({ data }: { data: number[] }) {
   );
 }
 
-function severityRank(s: Suggestion['severity']): number {
-  return s === 'critical' ? 3 : s === 'warning' ? 2 : 1;
-}
-
-function severityColor(s: Suggestion['severity']): string {
-  return s === 'critical' ? 'red' : s === 'warning' ? 'yellow' : 'blue';
-}
-
-function severityIcon(s: Suggestion['severity']): string {
-  return s === 'critical' ? '🔴' : s === 'warning' ? '🟡' : '🔵';
-}

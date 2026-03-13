@@ -6,24 +6,54 @@ import type {
   PreventionRule, CompoundClassification,
 } from '../../../shared/types/session.js';
 import { analyzeSession } from './analyzer.js';
-import { atomicWriteSync } from '../../../shared/lib/fs-utils.js';
+import { atomicWriteSync, lockFileSync } from '../../../shared/lib/fs-utils.js';
 import { COMPOUND_TIMEOUT_MS, COMPOUND_PROMPT_MAX_LENGTH, COMPOUND_HISTORY_MAX, COMPOUND_MODEL, COMPOUND_DIR } from '../../../shared/lib/constants.js';
+import { loadConfig } from '../../../shared/lib/config.js';
 import { buildCompoundPrompt, formatSessionForCompound } from './compound-prompt.js';
 
 const HISTORY_FILE = join(COMPOUND_DIR, 'history.json');
 
-/** 컴파운드 결과를 history.json에 저장 */
+/** 컴파운드 결과를 history.json에 저장 (개수 기반 + 날짜 기반 이중 필터) */
 function saveCompoundResult(result: CompoundResult): void {
   mkdirSync(COMPOUND_DIR, { recursive: true });
-  let history: CompoundResult[] = [];
-  if (existsSync(HISTORY_FILE)) {
-    try {
-      history = JSON.parse(readFileSync(HISTORY_FILE, 'utf-8')) as CompoundResult[];
-    } catch { history = []; }
+  const lockPath = HISTORY_FILE + '.lock';
+  try {
+    lockFileSync(lockPath, () => {
+      let history: CompoundResult[] = [];
+      if (existsSync(HISTORY_FILE)) {
+        try {
+          history = JSON.parse(readFileSync(HISTORY_FILE, 'utf-8')) as CompoundResult[];
+        } catch { history = []; }
+      }
+      history.unshift(result);
+
+      // 개수 기반 제한
+      history = history.slice(0, COMPOUND_HISTORY_MAX);
+
+      // 날짜 기반 제한 (compoundRetentionDays)
+      const config = loadConfig();
+      if (config.compoundRetentionDays > 0) {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - config.compoundRetentionDays);
+        const cutoffStr = cutoff.toISOString().split('T')[0];
+        history = history.filter((h) => (h.date ?? '') >= cutoffStr);
+      }
+
+      atomicWriteSync(HISTORY_FILE, JSON.stringify(history, null, 2));
+    });
+  } catch (err) {
+    // lock 획득 실패 시 (다른 프로세스가 저장 중) lock 없이 시도
+    console.error('[clinsight] saveCompoundResult lock failed, retrying without lock:', err);
+    let history: CompoundResult[] = [];
+    if (existsSync(HISTORY_FILE)) {
+      try {
+        history = JSON.parse(readFileSync(HISTORY_FILE, 'utf-8')) as CompoundResult[];
+      } catch { history = []; }
+    }
+    history.unshift(result);
+    history = history.slice(0, COMPOUND_HISTORY_MAX);
+    atomicWriteSync(HISTORY_FILE, JSON.stringify(history, null, 2));
   }
-  history.unshift(result);
-  history = history.slice(0, COMPOUND_HISTORY_MAX);
-  atomicWriteSync(HISTORY_FILE, JSON.stringify(history, null, 2));
 }
 
 /** spawn + stdin 기반 비동기 실행 */
@@ -124,8 +154,16 @@ export function runCompound(sessions: ParsedSession[]): CompoundResult {
 
     saveCompoundResult(compoundResult);
     return compoundResult;
-  } catch {
-    return emptyResult();
+  } catch (err) {
+    const errResult = emptyResult();
+    const msg = err instanceof Error ? err.message : String(err);
+    errResult.classification = {
+      types: ['error'],
+      domains: [],
+      complexity: 'low',
+      summary: `동기 분석 실패: ${msg}`,
+    };
+    return errResult;
   }
 }
 

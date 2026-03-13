@@ -42,9 +42,12 @@ export interface ArchivedSession {
   };
 }
 
-/** 날짜 문자열(YYYY-MM-DD) 생성 */
+/** 날짜 문자열(YYYY-MM-DD) 생성 — 로컬 타임존 기준 */
 function toDateStr(date: Date): string {
-  return date.toISOString().split('T')[0];
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /** 아카이브 파일 경로 */
@@ -121,18 +124,14 @@ export function syncMessages(
   atomicWriteSync(archivePath, JSON.stringify(session, null, 2));
 }
 
-/** 기존 아카이브 파일 찾기 (오늘 또는 최근) */
+/** 기존 아카이브 파일 찾기 (오늘부터 최대 7일 전까지 확인하여 중복 방지) */
 function findArchivePath(sessionId: string): string | null {
-  // 오늘 먼저
-  const todayPath = getArchivePath(sessionId);
-  if (existsSync(todayPath)) return todayPath;
-
-  // 어제도 확인 (자정 걸치는 세션)
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayPath = getArchivePath(sessionId, yesterday);
-  if (existsSync(yesterdayPath)) return yesterdayPath;
-
+  for (let daysAgo = 0; daysAgo <= 7; daysAgo++) {
+    const date = new Date();
+    date.setDate(date.getDate() - daysAgo);
+    const path = getArchivePath(sessionId, date);
+    if (existsSync(path)) return path;
+  }
   return null;
 }
 

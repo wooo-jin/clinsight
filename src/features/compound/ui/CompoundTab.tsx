@@ -218,7 +218,9 @@ export function CompoundTab({ onRunCompound, isRunning = false, projects = [] }:
       <Text dimColor>
         {applyMode === 'none'
           ? '[a] 일괄 적용  [d] 무시  [u] 되돌리기  [j/k] 이동  [x] 이력관리  [p] 기간  [c] 실행  [r] 새로고침'
-          : ''}
+          : applyMode === 'selectTarget'
+            ? '[j/k] 이동  [Enter] 선택  [Esc/q] 취소'
+            : '[j/k] 이동  [x] 삭제  [Esc/q] 돌아가기'}
       </Text>
     </Box>
   );

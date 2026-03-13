@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
+import { homedir } from 'os';
 import { Panel } from '../../../shared/ui/index.js';
 import { loadConfig, saveConfig, CONFIG_PATH } from '../../../shared/lib/config.js';
 import { getArchiveSize } from '../../archive/lib/archive-writer.js';
@@ -101,7 +102,7 @@ export function SettingsTab() {
             return (
               <Box key={setting.key} flexDirection="column" marginBottom={1}>
                 <Box>
-                  <Text color={isActive ? 'cyan' : 'white'} bold={isActive}>
+                  <Text color={isActive ? 'cyan' : undefined} dimColor={!isActive} bold={isActive}>
                     {isActive ? '>' : ' '} {setting.label}
                   </Text>
                 </Box>
@@ -121,12 +122,12 @@ export function SettingsTab() {
 
       <Panel title="📊 저장소 현황">
         <Text>아카이브: <Text bold>{archiveInfo.sessionCount}</Text>개 세션 / <Text bold>{archiveInfo.dayCount}</Text>일 / <Text bold>{formatBytes(archiveInfo.totalBytes)}</Text></Text>
-        <Text dimColor>경로: {CONFIG_PATH}</Text>
+        <Text dimColor wrap="truncate">경로: {CONFIG_PATH.replace(homedir(), '~')}</Text>
       </Panel>
 
       <Box marginTop={1}>
         <Text dimColor>[↑↓] 항목 선택  [←→] 값 변경  </Text>
-        {saved && <Text color="green" bold> 저장됨!</Text>}
+        {saved && <Text color="green" bold> 저장됨! 다음 크론 실행 시 적용됩니다</Text>}
       </Box>
     </Box>
   );

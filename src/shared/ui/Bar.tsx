@@ -12,12 +12,13 @@ export function Bar({
   width = 20,
   colorThresholds = { green: 50, yellow: 80 },
 }: BarProps) {
-  const filled = Math.round((value / 100) * width);
+  const clamped = Math.min(100, Math.max(0, value));
+  const filled = Math.round((clamped / 100) * width);
   const empty = width - filled;
 
-  const color = value < colorThresholds.green
+  const color = clamped < colorThresholds.green
     ? 'green'
-    : value < colorThresholds.yellow
+    : clamped < colorThresholds.yellow
       ? 'yellow'
       : 'red';
 
@@ -25,7 +26,7 @@ export function Bar({
     <Text>
       <Text color={color}>{'█'.repeat(filled)}</Text>
       <Text dimColor>{'░'.repeat(empty)}</Text>
-      <Text> {value}%</Text>
+      <Text> {clamped}%</Text>
     </Text>
   );
 }

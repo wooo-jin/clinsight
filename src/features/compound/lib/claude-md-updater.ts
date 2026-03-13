@@ -73,8 +73,10 @@ export function appendToClaudeMd(
  */
 /** @internal 테스트용 export */
 export function insertIntoSection(content: string, subsectionHeader: string, bulletItem: string): string {
-  // 이미 동일한 내용이 있으면 중복 추가 방지
-  if (content.includes(bulletItem)) {
+  // 이미 동일한 내용이 있으면 중복 추가 방지 (trim + 대소문자 무시)
+  const normalizedBullet = bulletItem.trim().toLowerCase();
+  const hasExisting = content.split('\n').some((line) => line.trim().toLowerCase() === normalizedBullet);
+  if (hasExisting) {
     return content;
   }
 
