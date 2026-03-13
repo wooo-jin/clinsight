@@ -54,6 +54,29 @@ export function DashboardTab({ sessions, analyses }: DashboardTabProps) {
         </Panel>
       </Box>
 
+      {/* 시간대별 활동 + 주간 요일별 */}
+      <Box gap={2}>
+        <Panel title="🕐 시간대별 활동 (오늘)">
+          <HourlyHeatmap data={stats.hourlyCosts} />
+        </Panel>
+        <Panel title="📅 주간 요일별 사용량">
+          <SparkLine
+            data={stats.weekdayCosts}
+            color="yellow"
+            formatValue={(v) => `$${v.toFixed(0)}`}
+            labels={['월', '화', '수', '목', '금', '토', '일']}
+          />
+          <Box marginTop={1}>
+            <Text dimColor>세션: </Text>
+            {stats.weekdaySessions.map((count: number, i: number) => (
+              <Box key={i} width={10} justifyContent="center">
+                <Text dimColor>{count}개</Text>
+              </Box>
+            ))}
+          </Box>
+        </Panel>
+      </Box>
+
       {/* 기능 사용 현황 */}
       <Panel title="🛠️ 기능 사용 현황 (전체)">
         <Box gap={3}>
@@ -171,15 +194,72 @@ function computeStats(sessions: ParsedSession[], analyses: SessionAnalysis[]) {
     .map(([key, count]) => [FEATURE_LABELS[key] ?? key, count] as [string, number])
     .sort(([, a], [, b]) => b - a);
 
+  // 시간대별 비용 (오늘, 0-23시)
+  const hourlyCosts = new Array(24).fill(0) as number[];
+  const todaySessions = sessions.filter((s) => s.startTime >= todayStart);
+  for (const s of todaySessions) {
+    const hour = s.startTime.getHours();
+    hourlyCosts[hour] += s.estimatedCostUsd;
+  }
+
+  // 주간 요일별 비용/세션 (최근 7일, 월=0 ~ 일=6)
+  const weekdayCosts = new Array(7).fill(0) as number[];
+  const weekdaySessions = new Array(7).fill(0) as number[];
+  const weekSessions = sessions.filter((s) => s.startTime >= weekStart);
+  for (const s of weekSessions) {
+    // JS: 0=일, 1=월 → 변환: 월=0, 화=1, ..., 일=6
+    const jsDay = s.startTime.getDay();
+    const dayIdx = jsDay === 0 ? 6 : jsDay - 1;
+    weekdayCosts[dayIdx] += s.estimatedCostUsd;
+    weekdaySessions[dayIdx]++;
+  }
+
   return {
     today: periodStats(todayStart),
     week: periodStats(weekStart),
     month: periodStats(monthStart),
     dailyCosts,
     dailyEfficiency,
+    hourlyCosts,
+    weekdayCosts,
+    weekdaySessions,
     topSuggestions,
     featureRanking,
   };
+}
+
+const HEAT_BLOCKS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+
+function HourlyHeatmap({ data }: { data: number[] }) {
+  const max = Math.max(...data, 0.01);
+  return (
+    <Box flexDirection="column">
+      <Box>
+        {data.map((v, i) => {
+          const idx = Math.round((v / max) * (HEAT_BLOCKS.length - 1));
+          const color = v === 0 ? 'gray' : v >= max * 0.7 ? 'red' : v >= max * 0.3 ? 'yellow' : 'green';
+          return (
+            <Box key={i} width={3}>
+              <Text color={color}>{HEAT_BLOCKS[idx]}</Text>
+            </Box>
+          );
+        })}
+      </Box>
+      <Box>
+        {data.map((_, i) => (
+          <Box key={i} width={3}>
+            <Text dimColor>{i < 10 ? ` ${i}` : String(i)}</Text>
+          </Box>
+        ))}
+      </Box>
+      <Box marginTop={1}>
+        <Text dimColor>
+          총 ${data.reduce((a, b) => a + b, 0).toFixed(2)} |
+          피크: {data.indexOf(Math.max(...data))}시
+        </Text>
+      </Box>
+    </Box>
+  );
 }
 
 function severityRank(s: Suggestion['severity']): number {
