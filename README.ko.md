@@ -196,6 +196,12 @@ Claude Code Session
 
 ---
 
+## Acknowledgements
+
+[claude-session-tracker](https://github.com/ej31/claude-session-tracker)에서 영감을 받았습니다.
+
+---
+
 ## License
 
 [MIT](LICENSE)

@@ -195,6 +195,12 @@ Claude Code Session
 
 ---
 
+## Acknowledgements
+
+Inspired by [claude-session-tracker](https://github.com/ej31/claude-session-tracker).
+
+---
+
 ## License
 
 [MIT](LICENSE)
