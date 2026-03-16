@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, existsSync, statSync, openSync, readSync, closeSync } from 'fs';
+import { readdirSync, existsSync, statSync } from 'fs';
 import { join, basename } from 'path';
 import type {
   ParsedSession,
@@ -16,6 +16,7 @@ import {
   countReverts,
 } from './parser-utils.js';
 import { CLAUDE_DIR, PROJECTS_DIR, MAX_JSONL_SIZE } from '../../../shared/lib/constants.js';
+import { readFileSafe } from '../../../shared/lib/fs-utils.js';
 
 export function getClaudeDir(): string {
   return CLAUDE_DIR;
@@ -120,30 +121,12 @@ function listAllSessionFiles(): SessionFile[] {
   return result;
 }
 
-/** 파일 앞부분만 안전하게 읽기 (OOM 방지: 대용량 파일에서 전체 로드 없이 제한 크기만 읽음) */
-function readFileSafe(filePath: string, maxSize: number): { content: string; truncated: boolean } {
-  let fileSize: number;
-  try {
-    fileSize = statSync(filePath).size;
-  } catch {
-    return { content: '', truncated: false };
-  }
-  if (fileSize <= maxSize) {
-    return { content: readFileSync(filePath, 'utf-8'), truncated: false };
-  }
-  // 대용량 파일: fd 기반으로 앞부분만 읽기 (readFileSync().slice()는 전체를 메모리에 올림)
-  const buf = Buffer.alloc(maxSize);
-  const fd = openSync(filePath, 'r');
-  try {
-    readSync(fd, buf, 0, maxSize, 0);
-  } finally {
-    closeSync(fd);
-  }
-  // 절단 시 마지막 완전한 줄(\n)까지만 사용 — 불완전한 JSON 라인 방지
-  const raw = buf.toString('utf-8');
-  const lastNewline = raw.lastIndexOf('\n');
-  const content = lastNewline > 0 ? raw.slice(0, lastNewline) : raw;
-  return { content, truncated: true };
+/** JSONL 스키마 기본 검증: 필수 필드 존재 확인 */
+function isKnownSchema(obj: Record<string, unknown>): boolean {
+  if (!obj.type || !obj.timestamp || !obj.sessionId) return false;
+  if (obj.type === 'user' && !obj.message) return false;
+  if (obj.type === 'assistant' && !obj.message) return false;
+  return true;
 }
 
 /** JSONL 파싱 */
@@ -156,9 +139,9 @@ function parseJsonl(filePath: string): { messages: ProjectMessage[]; truncated: 
 
   for (const line of lines) {
     try {
-      const obj = JSON.parse(line) as ProjectMessage;
-      if (obj.type === 'user' || obj.type === 'assistant') {
-        messages.push(obj);
+      const obj = JSON.parse(line) as Record<string, unknown>;
+      if ((obj.type === 'user' || obj.type === 'assistant') && isKnownSchema(obj)) {
+        messages.push(obj as unknown as ProjectMessage);
       }
     } catch {
       continue;
@@ -303,7 +286,13 @@ function loadSessionFromFile(sf: SessionFile): ParsedSession | null {
     revertCount,
     interactionPattern,
     agentTypes,
-    editOps: editOps.slice(0, 20), // compound 프롬프트용 샘플 (revertCount는 전체 editOps로 계산 완료)
+    // compound 프롬프트용 샘플: 토큰 폭발 방지를 위해 개수(50) + 문자열 길이(500자) 제한
+    // revertCount는 전체 editOps(제한 없음)로 이미 계산 완료
+    editOps: editOps.slice(0, 50).map((op) => ({
+      file: op.file,
+      oldStr: op.oldStr.slice(0, 500),
+      newStr: op.newStr.slice(0, 500),
+    })),
     truncated,
   };
 }
@@ -331,7 +320,7 @@ export function loadSession(sessionId: string, knownJsonlPath?: string): ParsedS
   // knownJsonlPath가 제공되면 디렉토리 스캔 생략 (hook에서 이미 경로를 알고 있는 경우)
   if (knownJsonlPath && existsSync(knownJsonlPath)) {
     const stat = statSync(knownJsonlPath);
-    const dirName = knownJsonlPath.split('/').slice(-2, -1)[0] ?? '';
+    const dirName = basename(join(knownJsonlPath, '..'));
     const project = dirNameToProjectPath(dirName, [knownJsonlPath]);
     const sf: SessionFile = { sessionId, project, filePath: knownJsonlPath, mtime: stat.mtime };
     return loadSessionFromFile(sf);

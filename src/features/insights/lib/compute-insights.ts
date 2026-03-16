@@ -117,12 +117,16 @@ export function computeInsights(sessions: ParsedSession[], analyses: SessionAnal
     totalToolCalls += s.toolUseCount;
     totalCost += s.estimatedCostUsd;
   }
-  // 전체 입력 토큰 = 새 입력 + 캐시 읽기 + 캐시 생성
-  const totalInputAll = totalInput + totalCacheRead + totalCacheWrite;
-  const cacheHitRate = totalInputAll > 0
-    ? Math.round((totalCacheRead / totalInputAll) * 100)
+  // 캐시 히트율: 전체 프롬프트 토큰(input + cacheRead + cacheWrite) 중 캐시 적중 비율
+  // - input_tokens: 캐시 미사용 토큰 (full-price miss)
+  // - cache_read_input_tokens: 캐시 적중 토큰 (hit, ~1/10 비용)
+  // - cache_creation_input_tokens: 처음 캐시에 쓰인 토큰 (miss, ~1.25x 비용)
+  // → cache_creation도 miss이므로 분모에 포함해야 정확한 히트율
+  const totalPromptTokens = totalInput + totalCacheRead + totalCacheWrite;
+  const cacheHitRate = totalPromptTokens > 0
+    ? Math.round((totalCacheRead / totalPromptTokens) * 100)
     : 0;
-  const tokensPerMessage = totalMessages > 0 ? Math.round((totalInputAll + totalOutput) / totalMessages) : 0;
+  const tokensPerMessage = totalMessages > 0 ? Math.round((totalPromptTokens + totalOutput) / totalMessages) : 0;
   const costPerToolCall = totalToolCalls > 0 ? totalCost / totalToolCalls : 0;
 
   // ── 🆕 반복 편집 핫스팟 ──

@@ -2,11 +2,13 @@ import { describe, it, expect } from 'vitest';
 import {
   calculateCost,
   extractUserPrompt,
+  extractToolUses,
+  getPricing,
   countReverts,
   categorizeTools,
   analyzeInteractionPattern,
 } from '../parser-utils.js';
-import type { TokenUsage, ProjectUserMessage } from '../../../../shared/types/session.js';
+import type { TokenUsage, ProjectUserMessage, ProjectAssistantMessage } from '../../../../shared/types/session.js';
 
 // ─────────────────────────────────────────────
 // calculateCost
@@ -85,6 +87,95 @@ describe('calculateCost', () => {
       cache_creation_input_tokens: 0,
     };
     expect(calculateCost(zeroUsage, 'claude-sonnet-4-6')).toBe(0);
+  });
+});
+
+// ─────────────────────────────────────────────
+// getPricing
+// ─────────────────────────────────────────────
+describe('getPricing', () => {
+  it('opus-4-6 모델에 올바른 가격을 반환한다', () => {
+    const pricing = getPricing('claude-opus-4-6');
+    expect(pricing.input).toBe(15);
+    expect(pricing.output).toBe(75);
+  });
+
+  it('긴 키부터 매칭하여 opus-4-6이 opus-4보다 먼저 매칭된다', () => {
+    const pricing = getPricing('claude-opus-4-6-20260315');
+    expect(pricing.input).toBe(15);
+  });
+
+  it('알 수 없는 모델은 sonnet-4 기본 단가를 반환한다', () => {
+    const pricing = getPricing('unknown-model');
+    expect(pricing.input).toBe(3);
+    expect(pricing.output).toBe(15);
+  });
+});
+
+// ─────────────────────────────────────────────
+// extractToolUses
+// ─────────────────────────────────────────────
+describe('extractToolUses', () => {
+  function makeAssistantMsg(content: ProjectAssistantMessage['message']['content']): ProjectAssistantMessage {
+    return {
+      type: 'assistant',
+      timestamp: '2026-03-10T10:00:00Z',
+      sessionId: 'test-session',
+      uuid: 'uuid-002',
+      message: {
+        model: 'claude-sonnet-4-6',
+        role: 'assistant',
+        content,
+        usage: { input_tokens: 0, output_tokens: 0 },
+      },
+    };
+  }
+
+  it('tool_use 블록을 추출한다', () => {
+    const msg = makeAssistantMsg([
+      { type: 'text', text: '파일을 읽겠습니다.' },
+      { type: 'tool_use', name: 'Read', input: { file_path: '/a.ts' }, id: 'tu1' },
+    ]);
+    const tools = extractToolUses(msg);
+    expect(tools).toHaveLength(1);
+    expect(tools[0].name).toBe('Read');
+    expect(tools[0].input.file_path).toBe('/a.ts');
+  });
+
+  it('여러 tool_use 블록을 모두 추출한다', () => {
+    const msg = makeAssistantMsg([
+      { type: 'tool_use', name: 'Read', input: { file_path: '/a.ts' }, id: 'tu1' },
+      { type: 'tool_use', name: 'Edit', input: { file_path: '/b.ts', old_string: 'a', new_string: 'b' }, id: 'tu2' },
+    ]);
+    const tools = extractToolUses(msg);
+    expect(tools).toHaveLength(2);
+    expect(tools[0].name).toBe('Read');
+    expect(tools[1].name).toBe('Edit');
+  });
+
+  it('tool_use가 아닌 블록은 무시한다', () => {
+    const msg = makeAssistantMsg([
+      { type: 'text', text: '생각 중...' },
+      { type: 'thinking', thinking: '분석 중' },
+    ]);
+    expect(extractToolUses(msg)).toHaveLength(0);
+  });
+
+  it('content가 배열이 아니면 빈 배열을 반환한다', () => {
+    const msg = {
+      ...makeAssistantMsg([]),
+      message: { ...makeAssistantMsg([]).message, content: 'not an array' as unknown as ProjectAssistantMessage['message']['content'] },
+    };
+    expect(extractToolUses(msg)).toHaveLength(0);
+  });
+
+  it('input이 없는 tool_use는 빈 객체로 처리한다', () => {
+    const msg = makeAssistantMsg([
+      { type: 'tool_use', name: 'Bash', id: 'tu1' },
+    ]);
+    const tools = extractToolUses(msg);
+    expect(tools).toHaveLength(1);
+    expect(tools[0].input).toEqual({});
   });
 });
 
@@ -239,18 +330,51 @@ describe('countReverts', () => {
   });
 
   it('동일 파일에서 연속 3회 편집 후 되돌림은 이전 newStr 누적을 기준으로 카운트한다', () => {
-    // 세 번째 op의 oldStr('const x = 3;')이
-    // 저장된 prevStrs(['const x = 2;', 'const x = 3;']) 중 하나와 일치
-    // break로 첫 매칭에서 중단하므로 1회만 카운트됨
     const ops = [
       { file: 'a.ts', oldStr: 'const x = 1;', newStr: 'const x = 2;' },
       { file: 'a.ts', oldStr: 'const x = 2;', newStr: 'const x = 3;' },
       { file: 'a.ts', oldStr: 'const x = 3;', newStr: 'const x = 1;' },
     ];
-    // 세 번째 op: oldStr이 prevStrs에 포함된 항목('const x = 3;')과 일치 → revert 1회
-    // 두 번째 op: oldStr('const x = 2;')이 prevStrs(['const x = 2;'])에 포함 → revert 1회
+    // 두 번째 op: oldStr('const x = 2;')가 prev('const x = 2;')와 완전 일치 → revert 1회
+    // 세 번째 op: oldStr('const x = 3;')가 prev('const x = 3;')와 완전 일치 → revert 1회
     // 총 revert = 2
     expect(countReverts(ops)).toBe(2);
+  });
+
+  it('이전 newStr이 oldStr의 50% 미만이면 거짓양성을 방지한다', () => {
+    const ops = [
+      {
+        file: 'a.ts',
+        oldStr: 'const original_code = true;',
+        newStr: 'const x = 1;',                      // 12자
+      },
+      {
+        // oldStr(60자)이 prev('const x = 1;', 12자)를 포함하지만
+        // 12/60 = 0.2 < 0.5 → revert로 판정하지 않음
+        file: 'a.ts',
+        oldStr: 'const x = 1; // plus a lot of additional context and code here',
+        newStr: 'const y = 2; // plus a lot of additional context and code here',
+      },
+    ];
+    expect(countReverts(ops)).toBe(0);
+  });
+
+  it('prev가 oldStr 길이의 정확히 50%이면 revert로 감지한다 (경계값)', () => {
+    // prev = 'abcdefghij' (10자), oldStr = 'abcdefghijklmnopqrst' (20자) → 10/20 = 0.5 → revert
+    const ops = [
+      { file: 'a.ts', oldStr: 'const xxxxxx = 0;', newStr: 'abcdefghij' },
+      { file: 'a.ts', oldStr: 'abcdefghijklmnopqrst', newStr: 'const xxxxxx = 0;' },
+    ];
+    expect(countReverts(ops)).toBe(1);
+  });
+
+  it('prev가 oldStr 길이의 50% 미만(49%)이면 revert로 감지하지 않는다 (경계값)', () => {
+    // prev = 'abcdefghij' (10자), oldStr = 'abcdefghijklmnopqrstu' (21자) → 10/21 = 0.476 < 0.5 → pass
+    const ops = [
+      { file: 'a.ts', oldStr: 'const xxxxxx = 0;', newStr: 'abcdefghij' },
+      { file: 'a.ts', oldStr: 'abcdefghijklmnopqrstu', newStr: 'const xxxxxx = 0;' },
+    ];
+    expect(countReverts(ops)).toBe(0);
   });
 });
 
@@ -431,5 +555,28 @@ describe('analyzeInteractionPattern', () => {
     expect(result.questions).toBe(1);
     expect(result.approvals).toBe(1);
     expect(result.corrections).toBe(1);
+  });
+
+  it('"다시 만들어줘"는 instruction으로 분류된다 (단순 재지시)', () => {
+    const result = analyzeInteractionPattern(['다시 만들어줘']);
+    expect(result.instructions).toBe(1);
+    expect(result.corrections).toBe(0);
+  });
+
+  it('"다시 해줘"는 correction으로 분류된다 (이전 결과 불만)', () => {
+    const result = analyzeInteractionPattern(['다시 해줘']);
+    expect(result.corrections).toBe(1);
+    expect(result.instructions).toBe(0);
+  });
+
+  it('"아니" 단독 프롬프트는 correction으로 분류된다', () => {
+    const result = analyzeInteractionPattern(['아니']);
+    expect(result.corrections).toBe(1);
+  });
+
+  it('"다시 하는 방법 알려줘"는 instruction으로 분류된다 (질문/지시이지 수정 아님)', () => {
+    const result = analyzeInteractionPattern(['다시 하는 방법 알려줘']);
+    // "다시 ?해줘|다시 ?해주|다시 ?해봐"에 매칭되지 않으므로 correction 아님
+    expect(result.corrections).toBe(0);
   });
 });
