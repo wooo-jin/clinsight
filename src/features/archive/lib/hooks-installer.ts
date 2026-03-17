@@ -28,13 +28,16 @@ interface Settings {
  *   1. clinsight-hook bin이 PATH에 있으면 그대로 사용 (npm global install)
  *   2. 현재 패키지의 dist/hook.js를 node 절대경로로 실행 (소스 설치)
  */
+const IS_WINDOWS = process.platform === 'win32';
+
 function buildHookCommand(event: string): string {
   // 1. clinsight-hook bin이 PATH에 있는지 확인
   try {
-    const binPath = execSync('which clinsight-hook 2>/dev/null || where clinsight-hook 2>nul', {
+    const cmd = IS_WINDOWS ? 'where clinsight-hook 2>nul' : 'which clinsight-hook 2>/dev/null';
+    const binPath = execSync(cmd, {
       encoding: 'utf-8',
       timeout: 3000,
-    }).trim();
+    }).trim().split('\n')[0]; // Windows `where`는 여러 줄 반환 가능
     if (binPath && existsSync(binPath)) {
       return `${binPath} ${event}`;
     }
@@ -45,12 +48,12 @@ function buildHookCommand(event: string): string {
   const distDir = dirname(dirname(dirname(dirname(thisFile)))); // lib/ → archive/ → features/ → dist or src
   const hookFromDist = join(distDir, 'hook.js');
   if (existsSync(hookFromDist)) {
-    return `${process.execPath} ${hookFromDist} ${event}`;
+    return `"${process.execPath}" "${hookFromDist}" ${event}`;
   }
 
   // 3. cwd 기반 fallback (개발 환경)
   const devPath = join(process.cwd(), 'dist', 'hook.js');
-  return `${process.execPath} ${devPath} ${event}`;
+  return `"${process.execPath}" "${devPath}" ${event}`;
 }
 
 function makeHookEntry(event: string): HookEntry {

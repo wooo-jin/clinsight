@@ -42,30 +42,24 @@ function saveCompoundResult(result: CompoundResult): void {
       atomicWriteSync(HISTORY_FILE, JSON.stringify(history, null, 2));
     });
   } catch (err) {
-    // lock 획득 실패 시 (다른 프로세스가 저장 중) lock 없이 시도
-    console.error('[clinsight] saveCompoundResult lock failed, retrying without lock:', err);
-    let history: CompoundResult[] = [];
-    if (existsSync(HISTORY_FILE)) {
-      try {
-        history = JSON.parse(readFileSync(HISTORY_FILE, 'utf-8')) as CompoundResult[];
-      } catch { history = []; }
-    }
-    history.unshift(result);
-    history = history.slice(0, COMPOUND_HISTORY_MAX);
-    atomicWriteSync(HISTORY_FILE, JSON.stringify(history, null, 2));
+    // lock 획득 실패 시 데이터 무결성 우선으로 실패 처리
+    console.error('[clinsight] saveCompoundResult lock failed, skipping save:', err);
   }
 }
+
+const IS_WINDOWS = process.platform === 'win32';
 
 /** spawn + stdin 기반 비동기 실행 */
 function spawnWithStdin(cmd: string, args: string[], input: string, timeoutMs: number): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'] });
+    // Windows에서 .cmd 래퍼를 실행하려면 shell: true 필요
+    const child = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'], shell: IS_WINDOWS });
     const chunks: Buffer[] = [];
     let killed = false;
 
     const timer = setTimeout(() => {
       killed = true;
-      child.kill('SIGTERM');
+      child.kill(); // Windows 호환: 시그널 없이 kill
       reject(new Error('timeout'));
     }, timeoutMs);
 
@@ -149,6 +143,7 @@ export function runCompound(sessions: ParsedSession[]): CompoundResult {
       timeout: COMPOUND_TIMEOUT_MS,
       maxBuffer: 10 * 1024 * 1024,
       input: prompt,
+      shell: IS_WINDOWS, // Windows에서 .cmd 래퍼 실행 지원
     });
 
     const parsed = extractJson(result);

@@ -108,21 +108,28 @@ export function SessionsTab({ sessions, analyses }: SessionsTabProps) {
     if (viewMode === 'list' && input === 'o' && currentSessions[selectedIdx]) {
       const session = currentSessions[selectedIdx];
       const sid = session.sessionId;
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-/.test(sid)) return;
-      // AppleScript: 백슬래시를 먼저 이스케이프, 그 다음 쌍따옴표 이스케이프
-      const appleEscape = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      // Shell: 작은따옴표 이스케이프
-      const shellEscape = (s: string) => s.replace(/'/g, "'\\''");
+      // 엄격한 UUID 검증 (인젝션 방지)
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(sid)) return;
+      // 경로 검증: 위험한 문자가 포함되면 거부
+      const projectPath = session.project;
+      if (/[`$(){}|;&<>!]/.test(projectPath)) return;
+
       if (process.platform === 'darwin') {
-        const script = `cd '${shellEscape(session.project)}' && claude --resume ${sid}`;
-        spawn('osascript', [
-          '-e', `tell application "Terminal" to do script "${appleEscape(script)}"`,
-          '-e', 'tell application "Terminal" to activate',
-        ], { detached: true, stdio: 'ignore' }).unref();
+        // osascript 대신 환경변수 + sh -c로 인젝션 방지
+        const child = spawn('sh', ['-c', 'cd "$CLINSIGHT_DIR" && open -a Terminal . && sleep 0.5 && osascript -e \'tell application "Terminal" to do script "claude --resume \'$CLINSIGHT_SID\'" in front window\''], {
+          detached: true,
+          stdio: 'ignore',
+          env: { ...process.env, CLINSIGHT_DIR: projectPath, CLINSIGHT_SID: sid },
+        });
+        child.unref();
       } else {
-        const script = `cd '${shellEscape(session.project)}' && claude --resume ${sid}`;
-        spawn('sh', ['-c', `x-terminal-emulator -e "sh -c '${script}'" 2>/dev/null || gnome-terminal -- sh -c '${script}' 2>/dev/null`],
-          { detached: true, stdio: 'ignore' }).unref();
+        // Linux: 환경변수로 전달하여 인젝션 방지
+        const child = spawn('sh', ['-c', 'cd "$CLINSIGHT_DIR" && x-terminal-emulator -e "claude --resume $CLINSIGHT_SID" 2>/dev/null || gnome-terminal -- sh -c "claude --resume $CLINSIGHT_SID" 2>/dev/null'], {
+          detached: true,
+          stdio: 'ignore',
+          env: { ...process.env, CLINSIGHT_DIR: projectPath, CLINSIGHT_SID: sid },
+        });
+        child.unref();
       }
     }
   });
@@ -251,6 +258,11 @@ export function SessionsTab({ sessions, analyses }: SessionsTabProps) {
                     </Text>
                   ))}
                 </>
+              )}
+
+              {/* 50MB 절단 경고 */}
+              {selected.truncated && (
+                <Text color="yellow" bold>⚠ 이 세션의 JSONL이 50MB를 초과하여 일부만 분석되었습니다</Text>
               )}
 
               {/* 제안 */}

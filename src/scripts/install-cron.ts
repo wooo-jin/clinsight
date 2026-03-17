@@ -52,7 +52,7 @@ function setCrontab(content: string): void {
     writeFileSync(tmpFile, content);
     execSync(`crontab "${tmpFile}"`, { encoding: 'utf-8' });
   } finally {
-    try { unlinkSync(tmpFile); } catch { /* ignore */ }
+    try { unlinkSync(tmpFile); } catch (err) { console.error('[clinsight] cleanup tmp:', err); }
   }
 }
 
@@ -136,9 +136,9 @@ function main() {
   const action = process.argv[2] || 'install';
 
   if (action === 'remove') {
-    IS_WINDOWS ? removeWindows() : removeUnix();
+    if (IS_WINDOWS) { removeWindows(); } else { removeUnix(); }
   } else {
-    IS_WINDOWS ? installWindows() : installUnix();
+    if (IS_WINDOWS) { installWindows(); } else { installUnix(); }
   }
 }
 
