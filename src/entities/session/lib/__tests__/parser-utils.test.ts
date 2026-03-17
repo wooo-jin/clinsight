@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import {
   calculateCost,
   extractUserPrompt,
   extractToolUses,
   getPricing,
+  resetPricingCache,
   countReverts,
   categorizeTools,
   analyzeInteractionPattern,
@@ -94,6 +95,8 @@ describe('calculateCost', () => {
 // getPricing
 // ─────────────────────────────────────────────
 describe('getPricing', () => {
+  afterEach(() => resetPricingCache());
+
   it('opus-4-6 모델에 올바른 가격을 반환한다', () => {
     const pricing = getPricing('claude-opus-4-6');
     expect(pricing.input).toBe(15);
@@ -109,6 +112,14 @@ describe('getPricing', () => {
     const pricing = getPricing('unknown-model');
     expect(pricing.input).toBe(3);
     expect(pricing.output).toBe(15);
+  });
+
+  it('config.json에 pricing 오버라이드가 없으면 내장 기본값을 사용한다', () => {
+    // config.json에 pricing 필드가 없는 기본 상태에서도 정상 동작
+    resetPricingCache();
+    const pricing = getPricing('claude-sonnet-4-6');
+    expect(pricing.input).toBe(3);
+    expect(pricing.cacheRead).toBe(0.3);
   });
 });
 

@@ -5,12 +5,13 @@ import type {
   TokenUsage,
   FeatureUsage,
 } from '../../../shared/types/session.js';
+import { loadConfig } from '../../../shared/lib/config.js';
+import type { PricingEntry } from '../../../shared/lib/config.js';
 
-// 모델별 토큰 단가 (USD per 1M tokens)
+// 내장 기본 단가 (USD per 1M tokens)
 // https://docs.anthropic.com/en/docs/about-claude/models#model-comparison-table
 // 긴 키부터 매칭하여 'sonnet-4-6'이 'sonnet-4'보다 먼저 매칭되도록 정렬
-type PricingEntry = { input: number; output: number; cacheRead: number; cacheWrite: number };
-const PRICING_ENTRIES: [string, PricingEntry][] = [
+const BUILTIN_PRICING: [string, PricingEntry][] = [
   ['opus-4-6',    { input: 15, output: 75, cacheRead: 1.5, cacheWrite: 18.75 }],
   ['sonnet-4-6',  { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 }],
   ['haiku-4-5',   { input: 0.8, output: 4, cacheRead: 0.08, cacheWrite: 1 }],
@@ -23,9 +24,34 @@ const PRICING_ENTRIES: [string, PricingEntry][] = [
 
 const DEFAULT_PRICING: PricingEntry = { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 };
 
-/** 모델에 해당하는 가격 정보 조회 (긴 키부터 매칭하여 오매칭 방지) */
+/** 내장 + config.json 오버라이드를 병합한 가격 테이블 (config 우선) */
+function buildPricingEntries(): [string, PricingEntry][] {
+  const config = loadConfig();
+  if (!config.pricing || Object.keys(config.pricing).length === 0) {
+    return BUILTIN_PRICING;
+  }
+  // config 오버라이드를 긴 키 순으로 정렬하여 앞에 배치
+  const overrides: [string, PricingEntry][] = Object.entries(config.pricing)
+    .sort(([a], [b]) => b.length - a.length);
+  // 내장 목록에서 오버라이드된 키 제거 후 병합
+  const overrideKeys = new Set(overrides.map(([k]) => k));
+  const remaining = BUILTIN_PRICING.filter(([k]) => !overrideKeys.has(k));
+  return [...overrides, ...remaining];
+}
+
+// 캐시: 프로세스 수명 동안 한 번만 config 읽기 (매 세션 파싱마다 I/O 방지)
+let _pricingCache: [string, PricingEntry][] | null = null;
+function getPricingEntries(): [string, PricingEntry][] {
+  if (!_pricingCache) _pricingCache = buildPricingEntries();
+  return _pricingCache;
+}
+
+/** 가격 캐시 초기화 (테스트용) */
+export function resetPricingCache(): void { _pricingCache = null; }
+
+/** 모델에 해당하는 가격 정보 조회 (config.json 오버라이드 > 내장 기본값) */
 export function getPricing(model: string): PricingEntry {
-  return PRICING_ENTRIES.find(([key]) => model.includes(key))?.[1] ?? DEFAULT_PRICING;
+  return getPricingEntries().find(([key]) => model.includes(key))?.[1] ?? DEFAULT_PRICING;
 }
 
 /** 비용 계산 */
@@ -94,30 +120,47 @@ export function categorizeTools(toolBreakdown: Record<string, number>): FeatureU
   return usage;
 }
 
-// 한/영 이중 지원 패턴
-const CORRECTION_PATTERN = /아니[, \n]|아니$|아닌데|그게 아니|안 돼|틀렸|잘못|고쳐|다시 ?해줘|다시 ?해주|다시 ?해봐|no[, ]not|wrong|undo|revert|fix that|that's not|try again|instead/i;
-const APPROVAL_PATTERN = /좋아|맞아|응|네|ㅇㅇ|감사|고마워|잘했|완벽|looks good|lgtm|perfect|great|thanks|nice|correct|yes/i;
-const QUESTION_PATTERN = /뭐|어떻게|왜|what|how|why|where|which|can you|could you|is there/i;
-const INSTRUCTION_PATTERN = /해줘|만들어|추가|수정|삭제|변경|구현|작성|add|create|remove|delete|change|update|implement|write|build|make/i;
+// ── 상호작용 패턴 분류 규칙 (데이터 주도) ──
+// 배열 순서 = 우선순위: 앞에 정의된 규칙이 먼저 매칭되면 해당 카테고리로 확정
+// 새 패턴 추가 시 이 배열에 항목만 추가하면 됨 (if/else 체인 수정 불필요)
+type InteractionCategory = 'corrections' | 'approvals' | 'questions' | 'instructions';
 
-/** 사용자 상호작용 패턴 분석 (우선순위: 수정 > 승인 > 질문 > 지시) */
+interface ClassificationRule {
+  category: InteractionCategory;
+  pattern: RegExp;
+}
+
+const CLASSIFICATION_RULES: ClassificationRule[] = [
+  // ── 수정 (최우선: 사용자가 AI 결과를 거부/수정 요청) ──
+  { category: 'corrections', pattern: /아니[, \n]|아니$|아닌데|그게 아니|안 돼|틀렸|잘못|고쳐/i },
+  { category: 'corrections', pattern: /다시 ?해줘|다시 ?해주|다시 ?해봐/i },
+  { category: 'corrections', pattern: /no[, ]not|wrong|undo|revert|fix that|that's not|try again|instead/i },
+  // ── 승인 ──
+  { category: 'approvals', pattern: /좋아|맞아|응|네|ㅇㅇ|감사|고마워|잘했|완벽/i },
+  { category: 'approvals', pattern: /looks good|lgtm|perfect|great|thanks|nice|correct|yes/i },
+  // ── 질문 ──
+  { category: 'questions', pattern: /\?/ },
+  { category: 'questions', pattern: /뭐|어떻게|왜|what|how|why|where|which|can you|could you|is there/i },
+  // ── 지시 (최저 우선순위) ──
+  { category: 'instructions', pattern: /해줘|만들어|추가|수정|삭제|변경|구현|작성/i },
+  { category: 'instructions', pattern: /add|create|remove|delete|change|update|implement|write|build|make/i },
+];
+
+/** 사용자 상호작용 패턴 분석
+ *  규칙 배열을 순회하여 첫 매칭 카테고리로 분류 (우선순위 = 배열 순서) */
 export function analyzeInteractionPattern(
   userPrompts: string[],
 ): { questions: number; instructions: number; corrections: number; approvals: number } {
-  const pattern = { questions: 0, instructions: 0, corrections: 0, approvals: 0 };
+  const result = { questions: 0, instructions: 0, corrections: 0, approvals: 0 };
   for (const prompt of userPrompts) {
-    // 우선순위 기반 분류 (각 프롬프트는 하나의 카테고리에만 집계)
-    if (CORRECTION_PATTERN.test(prompt)) {
-      pattern.corrections++;
-    } else if (APPROVAL_PATTERN.test(prompt)) {
-      pattern.approvals++;
-    } else if (prompt.includes('?') || QUESTION_PATTERN.test(prompt)) {
-      pattern.questions++;
-    } else if (INSTRUCTION_PATTERN.test(prompt)) {
-      pattern.instructions++;
+    for (const rule of CLASSIFICATION_RULES) {
+      if (rule.pattern.test(prompt)) {
+        result[rule.category]++;
+        break;
+      }
     }
   }
-  return pattern;
+  return result;
 }
 
 /** 되돌림 감지에서 prev가 oldStr에 대해 차지해야 하는 최소 비율.

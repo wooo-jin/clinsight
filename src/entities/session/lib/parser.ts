@@ -51,9 +51,10 @@ function dirNameToProjectPath(dirName: string, jsonlPaths: string[]): string {
   const cached = dirNameCache.get(dirName);
   if (cached) return cached;
 
-  // 캐시 크기 제한
+  // 캐시 크기 제한: FIFO — Map 삽입 순서를 활용하여 가장 오래된 항목 제거
   if (dirNameCache.size >= DIR_NAME_CACHE_MAX) {
-    dirNameCache.clear();
+    const oldestKey = dirNameCache.keys().next().value;
+    if (oldestKey !== undefined) dirNameCache.delete(oldestKey);
   }
 
   // 여러 JSONL에서 cwd 추출 시도 (첫 파일에 cwd가 없을 수 있음)
