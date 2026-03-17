@@ -10,6 +10,9 @@ function charWidth(code: number): number {
   // CJK Unified Ideographs, Hangul Syllables, Fullwidth Forms, etc.
   if (
     (code >= 0x1100 && code <= 0x115F) ||  // Hangul Jamo
+    (code >= 0x231A && code <= 0x23FF) ||  // Misc Technical (⌚, ⏰ 등)
+    (code >= 0x2600 && code <= 0x27BF) ||  // Misc Symbols, Dingbats (☀, ✅ 등)
+    (code >= 0x2B50 && code <= 0x2B55) ||  // Stars, circles
     (code >= 0x2E80 && code <= 0x303E) ||  // CJK Radicals
     (code >= 0x3040 && code <= 0x33BF) ||  // Hiragana, Katakana, CJK
     (code >= 0x3400 && code <= 0x4DBF) ||  // CJK Unified Ext A
@@ -19,6 +22,8 @@ function charWidth(code: number): number {
     (code >= 0xFE30 && code <= 0xFE6F) ||  // CJK Compatibility Forms
     (code >= 0xFF01 && code <= 0xFF60) ||  // Fullwidth Forms
     (code >= 0xFFE0 && code <= 0xFFE6) ||  // Fullwidth Signs
+    (code >= 0x1F000 && code <= 0x1FAFF) || // Emoji (🔥, 📊, 💡, 🤖, 📝, ❓, 🔄 등)
+    (code >= 0x1FB00 && code <= 0x1FBFF) || // Symbols for Legacy Computing
     (code >= 0x20000 && code <= 0x2FA1F)   // CJK Ext B-F
   ) {
     return 2;

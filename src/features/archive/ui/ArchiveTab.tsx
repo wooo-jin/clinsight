@@ -47,6 +47,15 @@ function truncate(str: string, maxLen: number): string {
   return str.length > maxLen ? str.slice(0, maxLen - 1) + '…' : str;
 }
 
+/** XML/HTML 태그, 제어 문자, 연속 공백을 정리하여 표시용 텍스트로 변환 */
+function sanitizeSummary(text: string): string {
+  return text
+    .replace(/<[^>]+>/g, '')        // XML/HTML 태그 제거
+    .replace(/\n/g, ' ')            // 개행 → 공백
+    .replace(/\s{2,}/g, ' ')        // 연속 공백 정리
+    .trim();
+}
+
 // App 오버헤드: 헤더(1)+margin(1)+탭바(1)+margin(1)+footer margin(1)+footer(1)=6
 // ArchiveTab 목록 오버헤드: 저장위치(1)+Panel상하(2)+제목(1)+날짜(~2)+푸터힌트(1)=7
 const ARCHIVE_OVERHEAD = 7; // 저장위치(1)+Panel상하(2)+제목(1)+날짜(~2)+푸터(1)
@@ -135,12 +144,12 @@ export function ArchiveTab({ maxHeight = 20 }: { maxHeight?: number }) {
       <Box flexDirection="column">
         <Panel title={`📂 ${selected.date} ${formatTime(s.startedAt)} — ${truncate(s.project, 40)}`}>
           <Text>{s.status === 'completed' ? '✓' : '⏳'} {s.durationMinutes}분 | {s.messages.length}msg | ${s.stats.estimatedCostUsd.toFixed(2)}</Text>
-          {s.summary && <Text dimColor>요약: {s.summary}</Text>}
+          {s.summary && <Text dimColor wrap="truncate">요약: {sanitizeSummary(s.summary)}</Text>}
         </Panel>
         <Panel title={`💬 ${msgStart + 1}-${msgEnd}/${s.messages.length} (p.${detailMsgPage + 1}/${msgPages})`}>
           {s.messages.slice(msgStart, msgEnd).map((msg, i) => (
             <Text key={i} wrap="truncate">
-              {msg.role === 'user' ? '👤' : '🤖'} {truncate(msg.content.replace(/\n/g, ' '), 90)}
+              {msg.role === 'user' ? '👤' : '🤖'} {truncate(sanitizeSummary(msg.content), 90)}
             </Text>
           ))}
         </Panel>
@@ -167,8 +176,9 @@ export function ArchiveTab({ maxHeight = 20 }: { maxHeight?: number }) {
     const isSel = globalIdx === safeCursor;
     const icon = s.status === 'completed' ? '✓' : '⏳';
     const projectName = pathBasename(s.project);
-    const summaryText = s.summary
-      ?? truncate((s.messages.find((m) => m.role === 'user')?.content ?? '').replace(/\n/g, ' '), 40);
+    const rawSummary = s.summary
+      ?? (s.messages.find((m) => m.role === 'user')?.content ?? '');
+    const summaryText = sanitizeSummary(rawSummary);
     const line = `${isSel ? '▸' : ' '} ${icon} ${formatTime(s.startedAt)} | ${s.durationMinutes}분 | $${s.stats.estimatedCostUsd.toFixed(2)} | ${projectName}`;
     lines.push(line);
     selLines.push(isSel);

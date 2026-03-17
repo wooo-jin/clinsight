@@ -58,18 +58,21 @@ export const COMPOUND_MODEL = 'claude-sonnet-4-6';
 /** 컴파운드 프롬프트 최대 길이 (문자) */
 export const COMPOUND_PROMPT_MAX_LENGTH = 50_000;
 
-/** 모델별 컨텍스트 윈도우 크기 (토큰) — 구체적인 키가 먼저 (includes 매칭 시 우선) */
-const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
-  'sonnet-3-5': 200_000,
-  'haiku-3-5': 200_000,
-  'opus-4': 200_000,
-  'sonnet-4': 200_000,
-  'haiku-4': 200_000,
-};
+/** 모델별 컨텍스트 윈도우 크기 (토큰) — 긴 키부터 매칭 */
+const MODEL_CONTEXT_WINDOWS: [string, number][] = [
+  ['opus-4-6', 200_000],
+  ['sonnet-4-6', 200_000],
+  ['haiku-4-5', 200_000],
+  ['opus-4', 200_000],
+  ['sonnet-4', 200_000],
+  ['haiku-4', 200_000],
+  ['sonnet-3-5', 200_000],
+  ['haiku-3-5', 200_000],
+];
 
 /** 모델명에서 컨텍스트 윈도우 크기 조회 (매칭 실패 시 기본값 200K) */
 export function getContextWindowSize(model: string): number {
-  const entry = Object.entries(MODEL_CONTEXT_WINDOWS).find(([key]) => model.includes(key));
+  const entry = MODEL_CONTEXT_WINDOWS.find(([key]) => model.includes(key));
   return entry ? entry[1] : ANALYSIS.CONTEXT_WINDOW_SIZE;
 }
 

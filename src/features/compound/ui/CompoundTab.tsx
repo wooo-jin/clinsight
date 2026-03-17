@@ -111,7 +111,7 @@ export function CompoundTab({ onRunCompound, isRunning = false, projects = [] }:
           }
         }
         if (appliedCount > 0) {
-          try { saveAppliedItems(currentApplied); setApplied(currentApplied); } catch { /* ignore */ }
+          try { saveAppliedItems(currentApplied); setApplied(currentApplied); } catch (err) { console.error('[clinsight] compound op:', err); }
           setStatusMsg(`✓ ${appliedCount}개 항목 일괄 적용됨`);
         } else {
           setStatusMsg('적용할 항목이 없습니다');
@@ -135,7 +135,7 @@ export function CompoundTab({ onRunCompound, isRunning = false, projects = [] }:
           setHistoryCursor((prev) => Math.min(prev, Math.max(0, updated.length - 1)));
           setCursor(0);
           setStatusMsg('🗑 이력 삭제됨');
-        } catch { /* ignore */ }
+        } catch (err) { console.error('[clinsight] compound op:', err); }
         if (updated.length === 0) setApplyMode('none');
         return;
       }
@@ -165,7 +165,7 @@ export function CompoundTab({ onRunCompound, isRunning = false, projects = [] }:
       if (idx !== undefined) {
         const item = actionItems[idx];
         const updated = applied.filter((a) => !(a.type === item.type && a.text === item.text));
-        try { saveAppliedItems(updated); setApplied(updated); } catch { /* ignore */ }
+        try { saveAppliedItems(updated); setApplied(updated); } catch (err) { console.error('[clinsight] compound op:', err); }
       }
     }
   });
@@ -234,5 +234,5 @@ function markItem(
 ) {
   const updated = applied.filter((a) => !(a.type === item.type && a.text === item.text));
   updated.push({ type: item.type, text: item.text, status, date: new Date().toISOString().split('T')[0] });
-  try { saveAppliedItems(updated); setApplied(updated); } catch { /* ignore */ }
+  try { saveAppliedItems(updated); setApplied(updated); } catch (err) { console.error('[clinsight] compound op:', err); }
 }
