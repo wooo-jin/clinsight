@@ -4,8 +4,58 @@ import {
   killZombieProcess,
   cleanOrphanDir,
   cleanAllZombies,
+  parseElapsedToHours,
 } from '../zombie.js';
-import type { ZombieInfo, ZombieProcess, OrphanDir } from '../zombie.js';
+import type { ZombieInfo, OrphanDir } from '../zombie.js';
+
+// ─────────────────────────────────────────────
+// parseElapsedToHours 단위 테스트
+// ─────────────────────────────────────────────
+describe('parseElapsedToHours', () => {
+  it('HH:MM:SS 포맷을 올바르게 변환한다', () => {
+    expect(parseElapsedToHours('02:30:00')).toBeCloseTo(2.5);
+  });
+
+  it('MM:SS 포맷을 올바르게 변환한다 (분 단위)', () => {
+    // 30:00 = 30분 = 0.5시간
+    expect(parseElapsedToHours('30:00')).toBeCloseTo(0.5);
+  });
+
+  it('D-HH:MM:SS 포맷 (일 포함)을 올바르게 변환한다', () => {
+    // 1-12:00:00 = 1일 12시간 = 36시간
+    expect(parseElapsedToHours('1-12:00:00')).toBeCloseTo(36);
+  });
+
+  it('0-00:00:00 포맷을 0으로 변환한다', () => {
+    expect(parseElapsedToHours('0-00:00:00')).toBe(0);
+  });
+
+  it('00:30 포맷 (30초)을 올바르게 변환한다', () => {
+    // 00:30 = 0분 30초 → 0/60 = 0시간
+    expect(parseElapsedToHours('00:30')).toBe(0);
+  });
+
+  it('03:04 포맷 (3분 4초)을 올바르게 변환한다', () => {
+    // 03:04 = 3분 → 3/60 = 0.05시간
+    expect(parseElapsedToHours('03:04')).toBeCloseTo(0.05);
+  });
+
+  it('7-00:00:00 포맷 (7일)을 올바르게 변환한다', () => {
+    expect(parseElapsedToHours('7-00:00:00')).toBe(168);
+  });
+
+  it('빈 문자열에 대해 0을 반환한다', () => {
+    expect(parseElapsedToHours('')).toBe(0);
+  });
+
+  it('잘못된 포맷에 대해 0을 반환한다', () => {
+    expect(parseElapsedToHours('invalid')).toBe(0);
+  });
+
+  it('N/A에 대해 0을 반환한다', () => {
+    expect(parseElapsedToHours('N/A')).toBe(0);
+  });
+});
 
 // ─────────────────────────────────────────────
 // zombie 모듈 exports 검증
@@ -40,13 +90,14 @@ describe('scanZombies', () => {
     expect(Array.isArray(result.orphanDirs)).toBe(true);
   });
 
-  it('processes 각 항목은 pid, elapsed, command, tty 필드를 갖는다', () => {
+  it('processes 각 항목은 pid, elapsed, command, tty, stat 필드를 갖는다', () => {
     const result = scanZombies();
     for (const proc of result.processes) {
       expect(typeof proc.pid).toBe('number');
       expect(typeof proc.elapsed).toBe('string');
       expect(typeof proc.command).toBe('string');
       expect(typeof proc.tty).toBe('string');
+      expect(typeof proc.stat).toBe('string');
     }
   });
 
@@ -65,7 +116,6 @@ describe('scanZombies', () => {
 // ─────────────────────────────────────────────
 describe('killZombieProcess', () => {
   it('존재하지 않는 PID에 대해 false를 반환한다', () => {
-    // PID 999999999는 존재하지 않을 가능성이 매우 높음
     const result = killZombieProcess(999_999_999);
     expect(result).toBe(false);
   });
@@ -91,8 +141,6 @@ describe('cleanOrphanDir', () => {
   });
 
   it('존재하지 않는 경로도 force 옵션으로 에러 없이 true를 반환한다', () => {
-    // rmSync의 { force: true } 옵션은 경로가 없어도 에러를 던지지 않으므로
-    // 존재하지 않는 경로에도 true를 반환하는 것이 현재 구현의 올바른 동작
     const orphan: OrphanDir = {
       projectDir: 'non-existent-project',
       sessionId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
