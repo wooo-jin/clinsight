@@ -1,12 +1,12 @@
 {
   "name": "clinsight",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Claude Code session analyzer & compound TUI dashboard",
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/wooo-jin/clinsight.git"
+    "url": "git+https://github.com/wooo-jin/clinsight.git"
   },
   "keywords": [
     "claude",
@@ -27,17 +27,17 @@
     "LICENSE"
   ],
   "bin": {
-    "clinsight": "./dist/cli.js",
-    "clinsight-cron": "./dist/cron.js",
-    "clinsight-hook": "./dist/hook.js",
-    "clinsight-setup": "./dist/setup.js",
-    "clinsight-cron-install": "./dist/scripts/install-cron.js"
+    "clinsight": "dist/cli.js",
+    "clinsight-cron": "dist/cron.js",
+    "clinsight-hook": "dist/hook.js",
+    "clinsight-setup": "dist/setup.js",
+    "clinsight-cron-install": "dist/scripts/install-cron.js"
   },
   "scripts": {
     "dev": "tsx src/cli.tsx",
     "build": "tsup",
-    "clean": "rm -rf dist",
-    "prepublishOnly": "rm -rf dist && tsup",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "prepublishOnly": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsup",
     "setup": "tsx src/setup.ts",
     "setup:uninstall": "tsx src/setup.ts --uninstall",
     "cron": "tsx src/cron.ts",
