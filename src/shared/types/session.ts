@@ -95,7 +95,7 @@ export interface ParsedSession {
   };
   /** Agent 위임 타입별 횟수 */
   agentTypes: Record<string, number>;
-  /** 편집 작업 목록 (compound 분석용, 최대 20개) */
+  /** 편집 작업 목록 (compound 분석용, 최대 50개, 문자열 500자 제한) */
   editOps: { file: string; oldStr: string; newStr: string }[];
   /** JSONL이 50MB 제한으로 절단되었는지 여부 */
   truncated?: boolean;

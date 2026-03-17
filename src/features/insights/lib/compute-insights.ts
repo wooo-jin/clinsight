@@ -166,7 +166,7 @@ export function computeInsights(sessions: ParsedSession[], analyses: SessionAnal
   // ── 🆕 종합 진단 ──
   const diagnosis: { icon: string; text: string; color: string }[] = [];
 
-  if (avgChurnIndex <= 0.15) {
+  if (avgChurnIndex <= 0.15 && analyses.length > 0) {
     diagnosis.push({ icon: '✓', text: '편집 정확도가 우수합니다', color: 'green' });
   } else if (avgChurnIndex > 0.3) {
     diagnosis.push({ icon: '!', text: `삽질 지수 ${avgChurnIndex} — 요구사항을 더 구체적으로 작성하세요`, color: 'red' });

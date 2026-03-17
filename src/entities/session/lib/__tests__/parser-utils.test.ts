@@ -589,5 +589,23 @@ describe('analyzeInteractionPattern', () => {
     const result = analyzeInteractionPattern(['다시 하는 방법 알려줘']);
     // "다시 ?해줘|다시 ?해주|다시 ?해봐"에 매칭되지 않으므로 correction 아님
     expect(result.corrections).toBe(0);
+    expect(result.instructions).toBe(1);
+  });
+
+  it('"create this instead"는 instruction으로 분류된다 (중간의 instead는 correction 아님)', () => {
+    const result = analyzeInteractionPattern(['create this instead of that']);
+    // "instead$"만 correction이므로 중간 위치의 instead는 매칭 안 됨
+    expect(result.corrections).toBe(0);
+    expect(result.instructions).toBe(1);
+  });
+
+  it('"do this instead"(문장 끝 instead)는 correction으로 분류된다', () => {
+    const result = analyzeInteractionPattern(['do this instead']);
+    expect(result.corrections).toBe(1);
+  });
+
+  it('"알려줘", "보여줘", "설명해줘"는 instruction으로 분류된다', () => {
+    const result = analyzeInteractionPattern(['방법 알려줘', '결과 보여줘', '코드 설명해줘']);
+    expect(result.instructions).toBe(3);
   });
 });

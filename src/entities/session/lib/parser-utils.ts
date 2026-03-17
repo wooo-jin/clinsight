@@ -134,7 +134,7 @@ const CLASSIFICATION_RULES: ClassificationRule[] = [
   // ── 수정 (최우선: 사용자가 AI 결과를 거부/수정 요청) ──
   { category: 'corrections', pattern: /아니[, \n]|아니$|아닌데|그게 아니|안 돼|틀렸|잘못|고쳐/i },
   { category: 'corrections', pattern: /다시 ?해줘|다시 ?해주|다시 ?해봐/i },
-  { category: 'corrections', pattern: /no[, ]not|wrong|undo|revert|fix that|that's not|try again|instead/i },
+  { category: 'corrections', pattern: /no[, ]not|wrong|undo|revert|fix that|that's not|try again|instead$/i },
   // ── 승인 ──
   { category: 'approvals', pattern: /좋아|맞아|응|네|ㅇㅇ|감사|고마워|잘했|완벽/i },
   { category: 'approvals', pattern: /looks good|lgtm|perfect|great|thanks|nice|correct|yes/i },
@@ -142,7 +142,7 @@ const CLASSIFICATION_RULES: ClassificationRule[] = [
   { category: 'questions', pattern: /\?/ },
   { category: 'questions', pattern: /뭐|어떻게|왜|what|how|why|where|which|can you|could you|is there/i },
   // ── 지시 (최저 우선순위) ──
-  { category: 'instructions', pattern: /해줘|만들어|추가|수정|삭제|변경|구현|작성/i },
+  { category: 'instructions', pattern: /해줘|만들어|추가|수정|삭제|변경|구현|작성|알려줘|보여줘|설명해/i },
   { category: 'instructions', pattern: /add|create|remove|delete|change|update|implement|write|build|make/i },
 ];
 
