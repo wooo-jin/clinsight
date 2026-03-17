@@ -2,7 +2,7 @@
  * JSONL 세션 파일을 ArchivedMessage 배열로 변환
  * 세션 종료 시 호출되어 완전한 대화 기록을 생성
  */
-import { readFileSync, existsSync, readdirSync, statSync, openSync, readSync, closeSync } from 'fs';
+import { existsSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 import type {
   ProjectMessage,
@@ -12,35 +12,12 @@ import type {
 } from '../../../shared/types/session.js';
 import type { ArchivedMessage, ToolResult } from './archive-writer.js';
 import { PROJECTS_DIR, MAX_JSONL_SIZE } from '../../../shared/lib/constants.js';
-
-/** 크기 제한 적용된 JSONL 읽기 (OOM 방지: 대용량 파일에서 전체 로드 없이 제한 크기만 읽음) */
-function readJsonlSafe(filePath: string): string {
-  let fileSize: number;
-  try {
-    fileSize = statSync(filePath).size;
-  } catch {
-    return '';
-  }
-  if (fileSize <= MAX_JSONL_SIZE) {
-    return readFileSync(filePath, 'utf-8');
-  }
-  const buf = Buffer.alloc(MAX_JSONL_SIZE);
-  const fd = openSync(filePath, 'r');
-  try {
-    readSync(fd, buf, 0, MAX_JSONL_SIZE, 0);
-  } finally {
-    closeSync(fd);
-  }
-  // 절단 시 마지막 완전한 줄까지만 사용
-  const raw = buf.toString('utf-8');
-  const lastNewline = raw.lastIndexOf('\n');
-  return lastNewline > 0 ? raw.slice(0, lastNewline) : raw;
-}
+import { readFileSafe } from '../../../shared/lib/fs-utils.js';
 
 /** JSONL 파일에서 메시지 파싱 */
 function parseJsonlMessages(filePath: string): ProjectMessage[] {
   if (!existsSync(filePath)) return [];
-  const lines = readJsonlSafe(filePath).split('\n').filter(Boolean);
+  const lines = readFileSafe(filePath, MAX_JSONL_SIZE).content.split('\n').filter(Boolean);
   const messages: ProjectMessage[] = [];
   for (const line of lines) {
     try {
@@ -79,7 +56,7 @@ function extractToolResultText(content: string | ContentBlock[] | undefined): st
   return '';
 }
 
-/** assistant content에서 텍스트 + 도구 사용/결과 추출 */
+/** assistant content에서 전체 원본 텍스트 추출 (자르기/요약 없이 그대로) */
 function extractAssistantContent(msg: ProjectAssistantMessage): {
   text: string;
   toolUses: string[];
@@ -88,7 +65,7 @@ function extractAssistantContent(msg: ProjectAssistantMessage): {
   const content = msg.message?.content;
   if (!Array.isArray(content)) return { text: '', toolUses: [], toolResults: [] };
 
-  const textParts: string[] = [];
+  const contentParts: string[] = [];
   const toolUses: string[] = [];
   const toolResults: ToolResult[] = [];
 
@@ -96,13 +73,18 @@ function extractAssistantContent(msg: ProjectAssistantMessage): {
   const toolIdMap = new Map<string, { name: string; input?: Record<string, unknown> }>();
 
   for (const block of content) {
-    if (block.type === 'text' && block.text) {
-      textParts.push(block.text);
+    if (block.type === 'thinking' && block.thinking) {
+      contentParts.push(block.thinking);
+    } else if (block.type === 'text' && block.text) {
+      contentParts.push(block.text);
     } else if (block.type === 'tool_use' && block.name) {
       toolUses.push(block.name);
       if (block.id) {
         toolIdMap.set(block.id, { name: block.name, input: block.input });
       }
+      // 도구 호출 input 원본 그대로 저장
+      const inputStr = block.input ? JSON.stringify(block.input) : '';
+      contentParts.push(`[${block.name}] ${inputStr}`);
     } else if (block.type === 'tool_result' && block.id) {
       const toolInfo = toolIdMap.get(block.id);
       const output = extractToolResultText(block.content);
@@ -112,11 +94,14 @@ function extractAssistantContent(msg: ProjectAssistantMessage): {
           input: toolInfo.input,
           output: output || undefined,
         });
+        if (output) {
+          contentParts.push(`[${toolInfo.name} result] ${output}`);
+        }
       }
     }
   }
 
-  return { text: textParts.join('\n'), toolUses, toolResults };
+  return { text: contentParts.join('\n'), toolUses, toolResults };
 }
 
 /** 세션 ID로 JSONL 파일 경로 찾기 */
@@ -157,7 +142,7 @@ export function jsonlToMessages(filePath: string): ArchivedMessage[] {
       if (text || toolUses.length > 0) {
         archived.push({
           role: 'assistant',
-          content: text || `[도구 사용: ${toolUses.join(', ')}]`,
+          content: text,
           timestamp: assistantMsg.timestamp,
           ...(toolUses.length > 0 ? { toolUses } : {}),
           ...(toolResults.length > 0 ? { toolResults } : {}),
@@ -169,7 +154,7 @@ export function jsonlToMessages(filePath: string): ArchivedMessage[] {
   return archived;
 }
 
-/** JSONL에서 기본 메타데이터 추출 (project, model 등) */
+/** JSONL에서 기본 메타데이터 추출 (project, model 등) — 앞부분 16KB만 읽어 메모리 절약 */
 export function extractJsonlMeta(filePath: string): {
   project: string;
   model: string;
@@ -177,7 +162,9 @@ export function extractJsonlMeta(filePath: string): {
   let project = 'unknown';
   let model = 'unknown';
 
-  const lines = readJsonlSafe(filePath).split('\n');
+  // project(cwd)와 model은 보통 JSONL 앞부분에 있으므로 16KB이면 충분
+  const { content } = readFileSafe(filePath, 16 * 1024);
+  const lines = content.split('\n');
   for (const line of lines) {
     if (!line) continue;
     try {

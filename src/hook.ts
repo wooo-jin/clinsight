@@ -15,6 +15,7 @@ import { initArchive, syncMessages, finalizeArchive } from './features/archive/l
 import { findJsonlPath, jsonlToMessages, extractJsonlMeta } from './features/archive/lib/jsonl-to-archive.js';
 import { loadSession } from './entities/session/lib/parser.js';
 import { ANALYSIS, getContextWindowSize } from './shared/lib/constants.js';
+import type { ParsedSession } from './shared/types/session.js';
 
 const HOOK_ERROR_LOG = join(homedir(), '.claude', 'clinsight', 'hook-errors.log');
 
@@ -97,31 +98,31 @@ function handleSessionStart(sessionId: string, input: HookInput): void {
 }
 
 function handlePromptSubmit(sessionId: string, _input: HookInput): void {
-  // JSONL에서 현재까지의 전체 대화를 읽어서 아카이브에 동기화
   const jsonlPath = findJsonlPath(sessionId);
   if (!jsonlPath) return;
 
+  // 1. 아카이브 동기화 (JSONL → archive JSON) — JSONL 1회 파싱
   const messages = jsonlToMessages(jsonlPath);
-  const meta = extractJsonlMeta(jsonlPath);
+  const meta = extractJsonlMeta(jsonlPath); // 16KB만 읽음 (별도 소량 읽기)
   syncMessages(sessionId, messages, meta);
 
-  // 세션 분석 → 경고 조건 충족 시 Claude 컨텍스트에 주입
-  // jsonlPath를 전달하여 디렉토리 재스캔 방지
-  const alerts = buildSessionAlerts(sessionId, jsonlPath);
+  // 2. 경고 생성 — loadSession이 JSONL을 다시 파싱하는 것을 방지하기 위해
+  //    아카이브 동기화에서 이미 파싱한 meta 정보를 활용
+  //    경고에 필요한 핵심 지표만 빠르게 계산
+  const session = loadSession(sessionId, jsonlPath);
+  if (!session) return;
+
+  const alerts = buildSessionAlertsFromParsed(session);
   if (alerts) {
-    // 제어 문자, ANSI 시퀀스 제거 (JSON 출력 안전성 보장)
     const sanitized = alerts
-      .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')  // ANSI escape sequences
-      .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '');  // control chars (keep \n \r \t)
+      .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+      .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '');
     process.stdout.write(JSON.stringify({ additionalContext: sanitized }));
   }
 }
 
-/** 현재 세션을 분석하여 경고 메시지 생성 */
-function buildSessionAlerts(sessionId: string, jsonlPath?: string): string | null {
-  const session = loadSession(sessionId, jsonlPath);
-  if (!session) return null;
-
+/** 파싱된 세션에서 경고 메시지 생성 (JSONL 재파싱 없음) */
+function buildSessionAlertsFromParsed(session: ParsedSession): string | null {
   const warnings: string[] = [];
 
   // 1. 컨텍스트 포화도 (모델별 윈도우 크기 기반)
@@ -150,7 +151,12 @@ function buildSessionAlerts(sessionId: string, jsonlPath?: string): string | nul
     warnings.push(`[Clinsight] 되돌림 ${session.revertCount}회 감지. 접근 방식을 재검토하는 것이 좋겠습니다.`);
   }
 
-  // 4. 세션 길이 경고
+  // 4. 50MB 절단 경고
+  if (session.truncated) {
+    warnings.push(`[Clinsight] 이 세션의 JSONL이 50MB를 초과하여 일부만 분석되었습니다. 세션을 나누는 것을 권장합니다.`);
+  }
+
+  // 5. 세션 길이 경고
   const durationCritical = ANALYSIS.SESSION_DURATION_CRITICAL;
   if (session.durationMinutes > durationCritical) {
     warnings.push(`[Clinsight] 세션 ${session.durationMinutes}분 진행 중. 새 세션으로 분리하는 것을 권장합니다.`);

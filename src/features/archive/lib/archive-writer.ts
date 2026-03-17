@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, mkdirSync, readdirSync, rmSync, statSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import { atomicWriteSync } from '../../../shared/lib/fs-utils.js';
+import { atomicWriteSync, lockFileSync } from '../../../shared/lib/fs-utils.js';
 import { loadConfig } from '../../../shared/lib/config.js';
 
 export const ARCHIVE_DIR = join(homedir(), '.claude', 'clinsight', 'archive');
@@ -106,22 +106,31 @@ export function syncMessages(
     initArchive(sessionId, meta.project);
   }
 
-  const session = readArchive(archivePath);
-  if (!session) return;
+  // read-modify-write 파일 락으로 동시 접근 방지
+  const lockPath = archivePath + '.lock';
+  try {
+    lockFileSync(lockPath, () => {
+      const session = readArchive(archivePath!);
+      if (!session) return;
 
-  // 전체 메시지를 JSONL 기준으로 교체 (JSONL이 source of truth)
-  session.messages = messages;
-  session.model = meta.model !== 'unknown' ? meta.model : session.model;
-  session.project = meta.project !== 'unknown' ? meta.project : session.project;
-  session.stats.userMessageCount = messages.filter((m) => m.role === 'user').length;
+      // 전체 메시지를 JSONL 기준으로 교체 (JSONL이 source of truth)
+      session.messages = messages;
+      session.model = meta.model !== 'unknown' ? meta.model : session.model;
+      session.project = meta.project !== 'unknown' ? meta.project : session.project;
+      session.stats.userMessageCount = messages.filter((m) => m.role === 'user').length;
 
-  // 사용자 프롬프트 기반 요약 업데이트
-  const userPrompts = messages
-    .filter((m) => m.role === 'user')
-    .map((m) => m.content);
-  session.summary = generateSessionSummary(userPrompts, []);
+      // 사용자 프롬프트 기반 요약 업데이트
+      const userPrompts = messages
+        .filter((m) => m.role === 'user')
+        .map((m) => m.content);
+      session.summary = generateSessionSummary(userPrompts, []);
 
-  atomicWriteSync(archivePath, JSON.stringify(session, null, 2));
+      atomicWriteSync(archivePath!, JSON.stringify(session, null, 2));
+    });
+  } catch (err) {
+    // lock 획득 실패 시 다음 프롬프트에서 재시도 (데이터 무결성 우선)
+    console.error('[clinsight] syncMessages lock failed, skipping this sync:', err);
+  }
 }
 
 /** 기존 아카이브 파일 찾기 (오늘부터 최대 7일 전까지 확인하여 중복 방지) */
@@ -267,8 +276,12 @@ export function generateSessionSummary(
 
   if (!meaningful) return '';
 
-  // 개행/탭 → 공백, 연속 공백 제거
-  let summary = meaningful.replace(/[\n\r\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  // XML/HTML 태그 제거, 개행/탭 → 공백, 연속 공백 제거
+  let summary = meaningful
+    .replace(/<[^>]+>/g, '')
+    .replace(/[\n\r\t]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 
   // 최대 80자로 제한
   const maxLen = 80;
